@@ -19,11 +19,10 @@ async function readError(response: Response) {
     return (
       data?.error ||
       data?.message ||
-      data?.details ||
       `Request failed with status ${response.status}`
     );
   } catch {
-    return raw.slice(0, 500);
+    return raw.slice(0, 400);
   }
 }
 

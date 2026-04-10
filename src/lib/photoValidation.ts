@@ -59,7 +59,6 @@ async function compressImage(file: File, maxDimension = 1280, quality = 0.88) {
     );
 
     const { width, height } = sourceImage;
-
     const scale = Math.min(1, maxDimension / Math.max(width, height));
     const targetWidth = Math.max(1, Math.round(width * scale));
     const targetHeight = Math.max(1, Math.round(height * scale));

@@ -1,11 +1,14 @@
 import { getAdminDb } from "./_lib/firebaseAdmin.js";
-import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq.js";
-import { scoreProducts } from "./_lib/recommendation.js";
+import { parseOccasionContext } from "./_lib/groq.js";
+import {
+  extractKeywordUniverse,
+  filterCuratedPool,
+  scoreProducts,
+} from "./_lib/recommendation.js";
 import {
   merchantProductSchema,
   recommendRequestSchema,
   recommendResponseSchema,
-  type ImageSignals,
   type MerchantProduct,
 } from "./_lib/schemas.js";
 
@@ -26,51 +29,7 @@ function getBody(req: any) {
   return req.body ?? {};
 }
 
-function getDefaultImageSignals(): ImageSignals {
-  return {
-    dominantColors: [],
-    paletteTemperature: "unknown",
-    skinToneBand: "unknown",
-    undertone: "unknown",
-    fitCues: [],
-    vibeTags: [],
-    visibleGarments: [],
-    confidence: 0,
-  };
-}
-
-function safeErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message || error.name || "Unknown error";
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return "Unknown non-serializable error";
-  }
-}
-
-function safeErrorLog(label: string, error: unknown) {
-  const message = safeErrorMessage(error);
-
-  if (error instanceof Error) {
-    console.error(label, {
-      name: error.name,
-      message,
-      stack: error.stack,
-    });
-    return;
-  }
-
-  console.error(label, { message });
-}
-
-async function fetchCandidateProducts() {
+async function fetchProducts() {
   const adminDb = getAdminDb();
 
   const snapshot = await adminDb
@@ -107,83 +66,60 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = recommendRequestSchema.parse(getBody(req));
+    const products = await fetchProducts();
 
-    if (body.photoValidation && !body.photoValidation.isValid) {
-      return res.status(400).json({
-        error:
-          body.photoValidation.reason ||
-          "Please upload a full-body photo from head to toe.",
-      });
-    }
+    const curatedPool = filterCuratedPool({
+      products,
+      gender: body.gender,
+      vibe: body.vibe,
+      category: body.category,
+      priceRange: body.priceRange,
+    });
 
-    let imageSignals: ImageSignals = getDefaultImageSignals();
-    let occasionContext;
-    let products: MerchantProduct[] = [];
+    const { availableKeywords, availableProductTypes } =
+      extractKeywordUniverse(curatedPool);
 
-    try {
-      if (body.imageDataUrl) {
-        imageSignals = await analyzeStylePhoto({
-          imageDataUrl: body.imageDataUrl,
-          gender: body.gender,
-          vibe: body.vibe,
-          category: body.category,
-        });
-      }
-    } catch (error) {
-      safeErrorLog("recommend stage=image-analysis", error);
-      throw new Error(`Image analysis failed: ${safeErrorMessage(error)}`);
-    }
+    const occasionContext = await parseOccasionContext({
+      occasion: body.occasion,
+      gender: body.gender,
+      vibe: body.vibe,
+      category: body.category,
+      availableKeywords,
+      availableProductTypes,
+    });
 
-    try {
-      occasionContext = await parseOccasionContext({
-        occasion: body.occasion,
-        gender: body.gender,
-        vibe: body.vibe,
-        category: body.category,
-      });
-    } catch (error) {
-      safeErrorLog("recommend stage=occasion-parse", error);
-      throw new Error(`Occasion parsing failed: ${safeErrorMessage(error)}`);
-    }
-
-    try {
-      products = await fetchCandidateProducts();
-    } catch (error) {
-      safeErrorLog("recommend stage=firestore-fetch", error);
-      throw new Error(`Inventory fetch failed: ${safeErrorMessage(error)}`);
-    }
-
-    let rankedProducts;
-    try {
-      rankedProducts = scoreProducts({
-        products,
-        gender: body.gender,
-        vibe: body.vibe,
-        category: body.category,
-        priceRange: body.priceRange,
-        occasionContext,
-        imageSignals,
-        maxResults: 12,
-      });
-    } catch (error) {
-      safeErrorLog("recommend stage=scoring", error);
-      throw new Error(
-        `Recommendation scoring failed: ${safeErrorMessage(error)}`,
-      );
-    }
+    const rankedProducts = scoreProducts({
+      products: curatedPool,
+      gender: body.gender,
+      vibe: body.vibe,
+      category: body.category,
+      priceRange: body.priceRange,
+      occasionContext,
+      imageSignals: {
+        dominantColors: [],
+        paletteTemperature: "unknown",
+        skinToneBand: "unknown",
+        undertone: "unknown",
+        fitCues: [],
+        vibeTags: [],
+        visibleGarments: [],
+        confidence: 0,
+      },
+      maxResults: 12,
+    });
 
     const response = recommendResponseSchema.parse({
-      imageSignals,
       occasionContext,
       products: rankedProducts,
     });
 
     return res.status(200).json(response);
   } catch (error) {
-    safeErrorLog("recommend fatal", error);
-
     return res.status(500).json({
-      error: safeErrorMessage(error),
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to generate recommendations",
     });
   }
 }

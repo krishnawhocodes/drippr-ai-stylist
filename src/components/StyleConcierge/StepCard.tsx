@@ -29,7 +29,7 @@ const StepCard = ({
   isActive,
   analysisText,
   onPhotoSelected,
-  allowPhotoSkip = true,
+  allowPhotoSkip = false,
 }: StepCardProps) => {
   const [questionDone, setQuestionDone] = useState(false);
   const [helperDone, setHelperDone] = useState(!helperText);
@@ -155,7 +155,7 @@ const StepCard = ({
 
   const handlePhotoSkip = () => {
     setPhotoError(null);
-    onAnswer("Skipped photo analysis");
+    onAnswer("Skipped photo validation");
   };
 
   const handleFilePick = async (file: File | undefined) => {
@@ -314,7 +314,7 @@ const StepCard = ({
               </div>
 
               <p className="text-[11px] text-muted-foreground mt-3 opacity-60">
-                Photos are used only for this session.
+                Photo is used only to verify full-body upload.
               </p>
 
               {photoError && (
@@ -335,7 +335,7 @@ const StepCard = ({
                   ref={promptTextareaRef}
                   value={promptValue}
                   onChange={(e) => setPromptValue(e.target.value)}
-                  placeholder="e.g. I am styling for a college fest which is at night during summer season..."
+                  placeholder="e.g. college fest at night during summer, office lunch, wedding guest look..."
                   className="w-full min-h-[120px] bg-[hsla(0,0%,10%,0.6)] border border-[hsla(0,0%,25%,0.5)] rounded-2xl px-5 py-4 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50 resize-none"
                   style={{
                     transition: "border-color 0.3s ease",

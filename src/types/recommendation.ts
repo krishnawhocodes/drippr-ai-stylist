@@ -1,5 +1,4 @@
 export type Gender = "Women" | "Men";
-
 export type PriceRange = "Under ₹300" | "₹300–₹500" | "₹500+";
 
 export interface PhotoValidationSummary {
@@ -54,7 +53,9 @@ export interface OccasionContext {
     | "unknown";
   comfortPriority: "low" | "medium" | "high";
   styleDirection: string[];
+  preferredKeywords: string[];
   avoidKeywords: string[];
+  preferredProductTypes: string[];
   confidence: number;
 }
 
@@ -64,8 +65,6 @@ export interface RecommendRequest {
   category: string;
   occasion: string;
   priceRange: PriceRange;
-  imageDataUrl: string | null;
-  photoValidation: PhotoValidationResult | null;
 }
 
 export interface RecommendedProduct {
@@ -84,7 +83,6 @@ export interface RecommendedProduct {
 }
 
 export interface RecommendResponse {
-  imageSignals: ImageSignals;
   occasionContext: OccasionContext;
   products: RecommendedProduct[];
 }

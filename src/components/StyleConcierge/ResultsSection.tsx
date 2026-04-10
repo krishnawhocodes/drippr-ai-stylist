@@ -2,14 +2,12 @@ import { useRef, useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import ProductCard from "./ProductCard";
 import type {
-  ImageSignals,
   OccasionContext,
   RecommendedProduct,
 } from "@/types/recommendation";
 
 interface ResultsSectionProps {
   products: RecommendedProduct[];
-  imageSignals: ImageSignals | null;
   occasionContext: OccasionContext | null;
   error: string | null;
   onAddToBag: (id: string) => void;
@@ -19,10 +17,7 @@ interface ResultsSectionProps {
   onChangeCategory: () => void;
 }
 
-function chipsFromContext(
-  imageSignals: ImageSignals | null,
-  occasionContext: OccasionContext | null,
-) {
+function chipsFromContext(occasionContext: OccasionContext | null) {
   const chips: string[] = [];
 
   if (occasionContext?.eventType)
@@ -34,19 +29,12 @@ function chipsFromContext(
   if (occasionContext?.formality && occasionContext.formality !== "unknown") {
     chips.push(occasionContext.formality.replace(/_/g, " "));
   }
-  if (
-    imageSignals?.paletteTemperature &&
-    imageSignals.paletteTemperature !== "unknown"
-  ) {
-    chips.push(`${imageSignals.paletteTemperature} palette`);
-  }
 
   return chips.slice(0, 5);
 }
 
 const ResultsSection = ({
   products,
-  imageSignals,
   occasionContext,
   error,
   onAddToBag,
@@ -64,7 +52,7 @@ const ResultsSection = ({
     }, 300);
   }, []);
 
-  const chips = chipsFromContext(imageSignals, occasionContext);
+  const chips = chipsFromContext(occasionContext);
   const displayed = showAll ? products : products.slice(0, 8);
 
   if (error) {

@@ -1,37 +1,7 @@
 import { z } from "zod";
 
 export const genderSchema = z.enum(["Women", "Men"]);
-
 export const priceRangeSchema = z.enum(["Under ₹300", "₹300–₹500", "₹500+"]);
-
-export const base64ImageSchema = z
-  .string()
-  .min(50, "Image is required")
-  .regex(
-    /^data:image\/(png|jpeg|jpg|webp);base64,/i,
-    "Image must be a base64 data URL",
-  );
-
-export const photoValidationSummarySchema = z.object({
-  personCount: z.number().int().min(0),
-  visibleParts: z.object({
-    head: z.boolean(),
-    shoulders: z.boolean(),
-    hips: z.boolean(),
-    knees: z.boolean(),
-    ankles: z.boolean(),
-  }),
-  framing: z.enum(["full_body", "partial_body", "unknown"]),
-  facing: z.enum(["front", "three_quarter", "side", "unknown"]),
-  posture: z.enum(["upright", "slightly_angled", "dynamic", "unknown"]),
-  visibilityScore: z.number().min(0).max(1),
-});
-
-export const photoValidationResultSchema = z.object({
-  isValid: z.boolean(),
-  reason: z.string().nullable(),
-  summary: photoValidationSummarySchema,
-});
 
 export const imageSignalsSchema = z.object({
   dominantColors: z.array(z.string()).max(8),
@@ -66,22 +36,10 @@ export const occasionContextSchema = z.object({
   ]),
   comfortPriority: z.enum(["low", "medium", "high"]),
   styleDirection: z.array(z.string()).max(10),
-  avoidKeywords: z.array(z.string()).max(10),
+  preferredKeywords: z.array(z.string()).max(20),
+  avoidKeywords: z.array(z.string()).max(20),
+  preferredProductTypes: z.array(z.string()).max(10),
   confidence: z.number().min(0).max(1),
-});
-
-export const photoAnalyzeRequestSchema = z.object({
-  imageDataUrl: base64ImageSchema,
-  gender: genderSchema.optional(),
-  vibe: z.string().min(1).max(80).optional(),
-  category: z.string().min(1).max(120).optional(),
-});
-
-export const occasionParseRequestSchema = z.object({
-  occasion: z.string().trim().min(2).max(800),
-  gender: genderSchema.optional(),
-  vibe: z.string().min(1).max(80).optional(),
-  category: z.string().min(1).max(120).optional(),
 });
 
 export const recommendRequestSchema = z.object({
@@ -90,11 +48,6 @@ export const recommendRequestSchema = z.object({
   category: z.string().min(1).max(120),
   occasion: z.string().trim().min(2).max(800),
   priceRange: priceRangeSchema,
-  imageDataUrl: base64ImageSchema.nullable().optional().default(null),
-  photoValidation: photoValidationResultSchema
-    .nullable()
-    .optional()
-    .default(null),
 });
 
 export const merchantProductSchema = z.object({
@@ -134,14 +87,12 @@ export const recommendedProductSchema = z.object({
 });
 
 export const recommendResponseSchema = z.object({
-  imageSignals: imageSignalsSchema,
   occasionContext: occasionContextSchema,
   products: z.array(recommendedProductSchema),
 });
 
 export type Gender = z.infer<typeof genderSchema>;
 export type PriceRange = z.infer<typeof priceRangeSchema>;
-export type PhotoValidationResult = z.infer<typeof photoValidationResultSchema>;
 export type ImageSignals = z.infer<typeof imageSignalsSchema>;
 export type OccasionContext = z.infer<typeof occasionContextSchema>;
 export type RecommendRequest = z.infer<typeof recommendRequestSchema>;

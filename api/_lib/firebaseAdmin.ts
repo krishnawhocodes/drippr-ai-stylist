@@ -38,9 +38,7 @@ function normalizePrivateKey(raw: string) {
 let cachedDb: Firestore | null = null;
 
 export function getAdminDb(): Firestore {
-  if (cachedDb) {
-    return cachedDb;
-  }
+  if (cachedDb) return cachedDb;
 
   if (getApps().length === 0) {
     const projectId = requireEnv("FIREBASE_PROJECT_ID");

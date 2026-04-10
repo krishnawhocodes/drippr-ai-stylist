@@ -46,6 +46,7 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
           <span className="chip-base text-xs px-3 py-2 flex items-center gap-1.5 opacity-80">
             <Tag size={12} /> {product.sku || "No SKU"}
           </span>
+
           <button
             onClick={() => onAddToBag(product.id)}
             className="chip-base chip-selected text-xs px-3 py-2 flex items-center gap-1.5"

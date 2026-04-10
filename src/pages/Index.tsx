@@ -8,9 +8,7 @@ import { prepareValidatedPhoto } from "@/lib/photoValidation";
 import { recommendStyle } from "@/lib/api";
 import type {
   Gender,
-  ImageSignals,
   OccasionContext,
-  PhotoValidationResult,
   PriceRange,
   RecommendedProduct,
 } from "@/types/recommendation";
@@ -22,11 +20,6 @@ interface Answers {
   category: string | null;
   occasion: string | null;
   priceRange: PriceRange | null;
-}
-
-interface PreparedPhotoState {
-  imageDataUrl: string;
-  photoValidation: PhotoValidationResult;
 }
 
 const INITIAL: Answers = {
@@ -49,16 +42,23 @@ const STEPS = [
   {
     key: "photo" as const,
     stepNumber: 2,
-    question: "Want a sharper match?",
+    question: "Upload a full-body photo",
     helperText:
-      "Upload a full-body photo from head to toe for posture, palette, and fit cues.",
+      "This is only used to verify that the image is a proper head-to-toe photo.",
     type: "photo" as const,
   },
   {
     key: "vibe" as const,
     stepNumber: 3,
     question: "Pick your vibe",
-    options: ["Streetwear", "Minimal", "Daily", "Thrift", "Fusion"],
+    options: [
+      "Streetwear",
+      "Minimal",
+      "Daily",
+      "Thrift",
+      "Fusion",
+      "Athleisure",
+    ],
     type: "chips" as const,
   },
   {
@@ -82,7 +82,7 @@ const STEPS = [
     stepNumber: 5,
     question: "Tell us more about the occasion",
     helperText:
-      "You can describe the event, season, time, vibe, comfort, or anything else that matters.",
+      "We’ll use this only to shortlist and rerank products inside your selected vibe and category.",
     type: "prompt" as const,
   },
   {
@@ -101,13 +101,9 @@ const Index = () => {
   const [showResults, setShowResults] = useState(false);
   const [bagCount, setBagCount] = useState(0);
 
-  const [preparedPhoto, setPreparedPhoto] = useState<PreparedPhotoState | null>(
-    null,
-  );
   const [recommendedProducts, setRecommendedProducts] = useState<
     RecommendedProduct[]
   >([]);
-  const [imageSignals, setImageSignals] = useState<ImageSignals | null>(null);
   const [occasionContext, setOccasionContext] =
     useState<OccasionContext | null>(null);
   const [recommendationError, setRecommendationError] = useState<string | null>(
@@ -134,16 +130,8 @@ const Index = () => {
     };
   }, [shouldLockViewport]);
 
-  const getAnalysisText = (stepKey: string): string | undefined => {
-    if (stepKey === "occasion" && preparedPhoto?.photoValidation.isValid) {
-      return "Nice — your full-body photo is ready. We'll combine your silhouette, palette cues, and occasion details for the final edit.";
-    }
-    return undefined;
-  };
-
   const resetRecommendationState = () => {
     setRecommendedProducts([]);
-    setImageSignals(null);
     setOccasionContext(null);
     setRecommendationError(null);
     setShowResults(false);
@@ -160,17 +148,13 @@ const Index = () => {
         category: nextAnswers.category as string,
         occasion: nextAnswers.occasion as string,
         priceRange: nextAnswers.priceRange as PriceRange,
-        imageDataUrl: preparedPhoto?.imageDataUrl ?? null,
-        photoValidation: preparedPhoto?.photoValidation ?? null,
       });
 
-      setImageSignals(response.imageSignals);
       setOccasionContext(response.occasionContext);
       setRecommendedProducts(response.products);
       setShowResults(true);
     } catch (error) {
       setRecommendedProducts([]);
-      setImageSignals(null);
       setOccasionContext(null);
       setRecommendationError(
         error instanceof Error
@@ -185,10 +169,6 @@ const Index = () => {
 
   const handleAnswer = useCallback(
     (key: keyof Answers, value: string) => {
-      if (key === "photo" && value.toLowerCase().includes("skipped")) {
-        setPreparedPhoto(null);
-      }
-
       const nextAnswers = {
         ...answers,
         [key]: value,
@@ -207,7 +187,7 @@ const Index = () => {
 
       runRecommendation(nextAnswers);
     },
-    [activeStep, answers, preparedPhoto],
+    [activeStep, answers],
   );
 
   const handlePhotoSelected = useCallback(async (file: File) => {
@@ -220,23 +200,7 @@ const Index = () => {
       );
     }
 
-    setPreparedPhoto(prepared);
-
-    const summary = prepared.photoValidation.summary;
-    const poseText =
-      summary.facing === "front"
-        ? "Front pose"
-        : summary.facing === "three_quarter"
-          ? "3/4 pose"
-          : "Body pose";
-    const postureText =
-      summary.posture === "upright"
-        ? "Upright posture"
-        : summary.posture === "slightly_angled"
-          ? "Natural posture"
-          : "Dynamic posture";
-
-    return `Full-body photo ready — ${poseText} · ${postureText}`;
+    return "Full-body photo verified";
   }, []);
 
   const handleEditStep = useCallback((stepIndex: number) => {
@@ -247,17 +211,11 @@ const Index = () => {
         keyof Answers,
         Answers[keyof Answers]
       >;
-
       keysToReset.forEach((key) => {
         updated[key] = null;
       });
-
       return updated as Answers;
     });
-
-    if (stepIndex <= 1) {
-      setPreparedPhoto(null);
-    }
 
     setActiveStep(stepIndex);
     setCurating(false);
@@ -266,7 +224,6 @@ const Index = () => {
 
   const handleRestart = useCallback(() => {
     setAnswers(INITIAL);
-    setPreparedPhoto(null);
     setActiveStep(0);
     setCurating(false);
     resetRecommendationState();
@@ -329,11 +286,10 @@ const Index = () => {
                 onAnswer={(val) => handleAnswer(step.key, val)}
                 onEdit={isAnswered ? () => handleEditStep(i) : undefined}
                 isActive={isActive}
-                analysisText={getAnalysisText(step.key)}
                 onPhotoSelected={
                   step.key === "photo" ? handlePhotoSelected : undefined
                 }
-                allowPhotoSkip={step.key === "photo"}
+                allowPhotoSkip={false}
               />
             );
           })}
@@ -345,7 +301,6 @@ const Index = () => {
           <div className="pb-20">
             <ResultsSection
               products={recommendedProducts}
-              imageSignals={imageSignals}
               occasionContext={occasionContext}
               error={recommendationError}
               onAddToBag={handleAddToBag}
