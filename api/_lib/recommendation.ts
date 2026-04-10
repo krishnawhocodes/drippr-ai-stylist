@@ -88,29 +88,67 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
   ],
 };
 
-const CATEGORY_TITLE_FALLBACK: Record<string, string[]> = {
-  "Tops & Dresses": ["top", "dress", "blouse", "shirt", "kurta", "tank"],
-  "Cargo & Pants": ["cargo", "pant", "pants", "trouser", "jogger", "jeans"],
+const CATEGORY_TEXT_FALLBACK: Record<string, string[]> = {
+  "Tops & Dresses": [
+    "top",
+    "dress",
+    "blouse",
+    "shirt",
+    "kurta",
+    "tank",
+    "crop top",
+  ],
+  "Cargo & Pants": [
+    "cargo",
+    "pant",
+    "pants",
+    "trouser",
+    "jogger",
+    "jeans",
+    "denim",
+  ],
   Tees: ["tee", "t-shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt"],
   "Sweatshirts & Hoodies": ["sweatshirt", "hoodie", "pullover"],
   Jackets: ["jacket", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
-  "Cord Set": ["co-ord", "coord", "set", "kurta set"],
-  Athleisure: ["athleisure", "sport", "sports", "gym", "running", "track"],
+  "Cord Set": ["co-ord", "coord", "cord set", "set", "kurta set"],
+  Athleisure: [
+    "athleisure",
+    "sport",
+    "sports",
+    "gym",
+    "running",
+    "track",
+    "activewear",
+  ],
 };
 
-const JUNK_TITLE_PATTERNS = [
+const JUNK_PATTERNS = [
   "test",
   "workflow",
   "debug",
   "sdfe",
   "sdf",
+  "dummy",
   "demo",
   "sample",
-  "dummy",
-  "prod",
   "multi image prod",
 ];
+
+export type CandidatePoolStage =
+  | "strict_product_type"
+  | "soft_text_match"
+  | "fallback_base_pool";
+
+export type CandidatePoolResult = {
+  products: MerchantProduct[];
+  stage: CandidatePoolStage;
+  counts: {
+    baseEligible: number;
+    strictProductType: number;
+    softTextMatch: number;
+  };
+};
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "")
@@ -200,7 +238,7 @@ function isJunkProduct(product: MerchantProduct) {
   const sku = normalizeText(product.sku);
   const text = joinProductText(product);
 
-  return JUNK_TITLE_PATTERNS.some(
+  return JUNK_PATTERNS.some(
     (pattern) =>
       title.includes(pattern) ||
       sku.includes(pattern) ||
@@ -208,24 +246,21 @@ function isJunkProduct(product: MerchantProduct) {
   );
 }
 
-function categoryMatches(product: MerchantProduct, selectedCategory: string) {
-  const normalizedProductType = normalizeText(product.productType);
-  const normalizedText = joinProductText(product);
+function categorySignals(product: MerchantProduct, selectedCategory: string) {
+  const productTypeText = normalizeText(product.productType);
+  const fullText = joinProductText(product);
 
-  const preferredTypes = CATEGORY_PRODUCT_TYPES[selectedCategory] ?? [];
-  const fallbackWords = CATEGORY_TITLE_FALLBACK[selectedCategory] ?? [];
+  const productTypeKeywords = CATEGORY_PRODUCT_TYPES[selectedCategory] ?? [];
+  const fallbackKeywords = CATEGORY_TEXT_FALLBACK[selectedCategory] ?? [];
 
-  const productTypeHits = countMatches(normalizedProductType, preferredTypes);
-
-  const titleFallbackHits =
-    normalizedProductType.length === 0
-      ? countMatches(normalizedText, fallbackWords)
-      : 0;
+  const productTypeHits = countMatches(productTypeText, productTypeKeywords);
+  const textHits = countMatches(fullText, fallbackKeywords);
+  const totalScore = productTypeHits * 10 + textHits * 4;
 
   return {
-    matched: productTypeHits > 0 || titleFallbackHits > 0,
     productTypeHits,
-    titleFallbackHits,
+    textHits,
+    totalScore,
   };
 }
 
@@ -282,31 +317,66 @@ function occasionBoost(text: string, occasionContext: OccasionContext) {
   return boost;
 }
 
-export function filterCuratedPool(args: {
+export function buildCandidatePool(args: {
   products: MerchantProduct[];
   gender: "Women" | "Men";
-  vibe: string;
   category: string;
   priceRange: PriceRange;
-}) {
-  const { products, gender, category, priceRange } = args;
-
-  return products.filter((product) => {
+}): CandidatePoolResult {
+  const baseEligible = args.products.filter((product) => {
     if (!inventoryAllowed(product)) return false;
     if (isJunkProduct(product)) return false;
     if (
       typeof product.price !== "number" ||
-      !priceMatches(priceRange, product.price)
+      !priceMatches(args.priceRange, product.price)
     )
       return false;
     if (!getPrimaryImage(product)) return false;
 
     const text = joinProductText(product);
-    const genderConflict = includesMenWomenConflict(text, gender);
-    const categoryCheck = categoryMatches(product, category);
-
-    return categoryCheck.matched && !genderConflict;
+    return !includesMenWomenConflict(text, args.gender);
   });
+
+  const strict = baseEligible.filter(
+    (product) => categorySignals(product, args.category).productTypeHits > 0,
+  );
+  const soft = baseEligible.filter(
+    (product) => categorySignals(product, args.category).totalScore > 0,
+  );
+
+  if (strict.length > 0) {
+    return {
+      products: strict,
+      stage: "strict_product_type",
+      counts: {
+        baseEligible: baseEligible.length,
+        strictProductType: strict.length,
+        softTextMatch: soft.length,
+      },
+    };
+  }
+
+  if (soft.length > 0) {
+    return {
+      products: soft,
+      stage: "soft_text_match",
+      counts: {
+        baseEligible: baseEligible.length,
+        strictProductType: strict.length,
+        softTextMatch: soft.length,
+      },
+    };
+  }
+
+  return {
+    products: baseEligible,
+    stage: "fallback_base_pool",
+    counts: {
+      baseEligible: baseEligible.length,
+      strictProductType: strict.length,
+      softTextMatch: soft.length,
+    },
+  };
 }
 
 export function extractKeywordUniverse(products: MerchantProduct[]) {
@@ -346,31 +416,22 @@ export function scoreProducts(args: {
   imageSignals: ImageSignals;
   maxResults?: number;
 }): RecommendedProduct[] {
-  const curatedPool = filterCuratedPool({
-    products: args.products,
-    gender: args.gender,
-    vibe: args.vibe,
-    category: args.category,
-    priceRange: args.priceRange,
-  });
-
   const vibeWords = VIBE_KEYWORDS[args.vibe] ?? [normalizeText(args.vibe)];
   const maxResults = args.maxResults ?? 12;
 
-  return curatedPool
+  return args.products
     .map((product) => {
       const text = joinProductText(product);
       const imageUrl = getPrimaryImage(product);
-      const categoryCheck = categoryMatches(product, args.category);
+      const cat = categorySignals(product, args.category);
 
       let score = 0;
       const reasons: string[] = [];
 
-      score +=
-        40 +
-        categoryCheck.productTypeHits * 8 +
-        categoryCheck.titleFallbackHits * 4;
-      reasons.push("Strong category fit.");
+      score += 20 + cat.totalScore * 3;
+      if (cat.totalScore > 0) {
+        reasons.push("Strong category fit.");
+      }
 
       const vibeHits = countMatches(text, vibeWords);
       score += vibeHits * 8;

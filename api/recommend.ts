@@ -1,8 +1,8 @@
 import { getAdminDb } from "./_lib/firebaseAdmin.js";
 import { parseOccasionContext } from "./_lib/groq.js";
 import {
+  buildCandidatePool,
   extractKeywordUniverse,
-  filterCuratedPool,
   scoreProducts,
 } from "./_lib/recommendation.js";
 import {
@@ -68,16 +68,16 @@ export default async function handler(req: any, res: any) {
     const body = recommendRequestSchema.parse(getBody(req));
     const products = await fetchProducts();
 
-    const curatedPool = filterCuratedPool({
+    const pool = buildCandidatePool({
       products,
       gender: body.gender,
-      vibe: body.vibe,
       category: body.category,
       priceRange: body.priceRange,
     });
 
-    const { availableKeywords, availableProductTypes } =
-      extractKeywordUniverse(curatedPool);
+    const { availableKeywords, availableProductTypes } = extractKeywordUniverse(
+      pool.products,
+    );
 
     const occasionContext = await parseOccasionContext({
       occasion: body.occasion,
@@ -89,7 +89,7 @@ export default async function handler(req: any, res: any) {
     });
 
     const rankedProducts = scoreProducts({
-      products: curatedPool,
+      products: pool.products,
       gender: body.gender,
       vibe: body.vibe,
       category: body.category,
@@ -116,11 +116,15 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "category-first-v2",
+        engineVersion: "category-fallback-v3",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
-        curatedPoolCount: curatedPool.length,
+        poolStage: pool.stage,
+        baseEligibleCount: pool.counts.baseEligible,
+        strictProductTypeCount: pool.counts.strictProductType,
+        softTextMatchCount: pool.counts.softTextMatch,
+        curatedPoolCount: pool.products.length,
       },
     });
   } catch (error) {
