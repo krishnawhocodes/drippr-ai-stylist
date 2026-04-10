@@ -11,6 +11,17 @@ const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 const TEXT_MODEL = "openai/gpt-oss-20b";
 
+class GroqHttpError extends Error {
+  status: number;
+  responseBody: string;
+
+  constructor(status: number, responseBody: string) {
+    super(`Groq request failed (${status}): ${responseBody}`);
+    this.status = status;
+    this.responseBody = responseBody;
+  }
+}
+
 function requireGroqKey(): string {
   const key = process.env.GROQ_API_KEY;
 
@@ -34,7 +45,7 @@ async function groqRequest(payload: Record<string, unknown>) {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new Error(`Groq request failed (${response.status}): ${text}`);
+    throw new GroqHttpError(response.status, text);
   }
 
   const data = JSON.parse(text);
@@ -61,6 +72,80 @@ function safeJsonParse<T>(raw: string, schema: z.ZodSchema<T>): T {
   }
 
   return schema.parse(parsed);
+}
+
+function normalizeOccasionContext(raw: unknown): OccasionContext {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+
+  const toEnum = <T extends readonly string[]>(
+    value: unknown,
+    allowed: T,
+    fallback: T[number],
+  ): T[number] => {
+    if (typeof value !== "string") return fallback;
+    return (
+      allowed.includes(value as T[number]) ? value : fallback
+    ) as T[number];
+  };
+
+  const toStringArray = (value: unknown, max = 10) => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, max);
+  };
+
+  const normalized = {
+    eventType:
+      typeof obj.eventType === "string" && obj.eventType.trim()
+        ? obj.eventType.trim()
+        : "general_event",
+    timeOfDay: toEnum(
+      obj.timeOfDay,
+      ["day", "night", "evening", "unknown"] as const,
+      "unknown",
+    ),
+    season: toEnum(
+      obj.season,
+      [
+        "summer",
+        "winter",
+        "monsoon",
+        "spring",
+        "autumn",
+        "all_season",
+        "unknown",
+      ] as const,
+      "unknown",
+    ),
+    formality: toEnum(
+      obj.formality,
+      [
+        "casual",
+        "smart_casual",
+        "semi_formal",
+        "formal",
+        "festive",
+        "unknown",
+      ] as const,
+      "unknown",
+    ),
+    comfortPriority: toEnum(
+      obj.comfortPriority,
+      ["low", "medium", "high"] as const,
+      "medium",
+    ),
+    styleDirection: toStringArray(obj.styleDirection, 10),
+    avoidKeywords: toStringArray(obj.avoidKeywords, 10),
+    confidence:
+      typeof obj.confidence === "number"
+        ? Math.max(0, Math.min(1, obj.confidence))
+        : 0.6,
+  };
+
+  return occasionContextSchema.parse(normalized);
 }
 
 export async function analyzeStylePhoto(input: {
@@ -187,7 +272,7 @@ export async function parseOccasionContext(input: {
     strict: true,
   };
 
-  const prompt = [
+  const basePrompt = [
     "Convert the user's occasion description into recommendation-ready structured fashion context.",
     "Return no prose.",
     "Use conservative inference.",
@@ -201,26 +286,83 @@ export async function parseOccasionContext(input: {
     `Occasion text: ${input.occasion}`,
   ].join("\n");
 
-  const raw = await groqRequest({
-    model: TEXT_MODEL,
-    temperature: 0.1,
-    max_tokens: 300,
-    response_format: {
-      type: "json_schema",
-      json_schema: jsonSchema,
-    },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a precise occasion parser for a fashion recommendation engine.",
+  try {
+    const raw = await groqRequest({
+      model: TEXT_MODEL,
+      temperature: 0.1,
+      max_tokens: 300,
+      response_format: {
+        type: "json_schema",
+        json_schema: jsonSchema,
       },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a precise occasion parser for a fashion recommendation engine.",
+        },
+        {
+          role: "user",
+          content: basePrompt,
+        },
+      ],
+    });
 
-  return safeJsonParse(raw, occasionContextSchema);
+    return safeJsonParse(raw, occasionContextSchema);
+  } catch (error) {
+    const isSchemaFailure =
+      error instanceof GroqHttpError &&
+      error.status === 400 &&
+      error.responseBody.includes("json_validate_failed");
+
+    if (!isSchemaFailure) {
+      throw error;
+    }
+
+    const fallbackPrompt = [
+      "Return ONLY a valid JSON object.",
+      "Do not include markdown.",
+      "Do not include comments.",
+      "Use these keys exactly:",
+      "eventType, timeOfDay, season, formality, comfortPriority, styleDirection, avoidKeywords, confidence",
+      "Allowed values:",
+      "- timeOfDay: day | night | evening | unknown",
+      "- season: summer | winter | monsoon | spring | autumn | all_season | unknown",
+      "- formality: casual | smart_casual | semi_formal | formal | festive | unknown",
+      "- comfortPriority: low | medium | high",
+      "If unsure, choose unknown or medium.",
+      basePrompt,
+    ].join("\n");
+
+    const rawFallback = await groqRequest({
+      model: TEXT_MODEL,
+      temperature: 0,
+      max_tokens: 300,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You return only JSON objects for fashion occasion parsing.",
+        },
+        {
+          role: "user",
+          content: fallbackPrompt,
+        },
+      ],
+    });
+
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(rawFallback);
+    } catch {
+      const match = rawFallback.match(/\{[\s\S]*\}/);
+      if (!match) {
+        throw new Error("Fallback JSON parsing failed for occasion context.");
+      }
+      parsed = JSON.parse(match[0]);
+    }
+
+    return normalizeOccasionContext(parsed);
+  }
 }
