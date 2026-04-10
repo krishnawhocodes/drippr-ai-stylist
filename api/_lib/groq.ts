@@ -63,56 +63,103 @@ async function groqRequest(payload: Record<string, unknown>) {
   return content;
 }
 
-function safeJsonParse<T>(raw: string, schema: z.ZodSchema<T>): T {
-  let parsed: unknown;
-
+function extractJsonObject(raw: string): unknown {
   try {
-    parsed = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) {
       throw new Error("Model response was not valid JSON");
     }
-    parsed = JSON.parse(match[0]);
+    return JSON.parse(match[0]);
   }
-
-  return schema.parse(parsed);
 }
 
-function normalizeOccasionContext(raw: unknown): OccasionContext {
-  const obj = (raw ?? {}) as Record<string, unknown>;
+function safeJsonParse<T>(raw: string, schema: z.ZodSchema<T>): T {
+  return schema.parse(extractJsonObject(raw));
+}
 
-  const toEnum = <T extends readonly string[]>(
-    value: unknown,
-    allowed: T,
-    fallback: T[number],
-  ): T[number] => {
-    if (typeof value !== "string") return fallback;
-    return (
-      allowed.includes(value as T[number]) ? value : fallback
-    ) as T[number];
-  };
-
-  const toStringArray = (value: unknown, max = 10) => {
-    if (!Array.isArray(value)) return [];
+function normalizeStringArray(value: unknown, max = 8): string[] {
+  if (Array.isArray(value)) {
     return value
       .filter((item): item is string => typeof item === "string")
       .map((item) => item.trim())
       .filter(Boolean)
       .slice(0, max);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[,\n/|]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, max);
+  }
+
+  return [];
+}
+
+function normalizeEnum<T extends readonly string[]>(
+  value: unknown,
+  allowed: T,
+  fallback: T[number],
+): T[number] {
+  if (typeof value !== "string") return fallback;
+  const normalized = value.trim().toLowerCase();
+  const matched = allowed.find((item) => item === normalized);
+  return (matched ?? fallback) as T[number];
+}
+
+function normalizeNumber(value: unknown, fallback: number) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.min(1, value));
+  }
+  return fallback;
+}
+
+function normalizeImageSignals(raw: unknown): ImageSignals {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+
+  const normalized = {
+    dominantColors: normalizeStringArray(obj.dominantColors, 8),
+    paletteTemperature: normalizeEnum(
+      obj.paletteTemperature,
+      ["warm", "cool", "neutral", "unknown"] as const,
+      "unknown",
+    ),
+    skinToneBand: normalizeEnum(
+      obj.skinToneBand,
+      ["light", "medium", "deep", "unknown"] as const,
+      "unknown",
+    ),
+    undertone: normalizeEnum(
+      obj.undertone,
+      ["warm", "cool", "neutral", "unknown"] as const,
+      "unknown",
+    ),
+    fitCues: normalizeStringArray(obj.fitCues, 8),
+    vibeTags: normalizeStringArray(obj.vibeTags, 8),
+    visibleGarments: normalizeStringArray(obj.visibleGarments, 8),
+    confidence: normalizeNumber(obj.confidence, 0.6),
   };
+
+  return imageSignalsSchema.parse(normalized);
+}
+
+function normalizeOccasionContext(raw: unknown): OccasionContext {
+  const obj = (raw ?? {}) as Record<string, unknown>;
 
   const normalized = {
     eventType:
       typeof obj.eventType === "string" && obj.eventType.trim()
         ? obj.eventType.trim()
         : "general_event",
-    timeOfDay: toEnum(
+    timeOfDay: normalizeEnum(
       obj.timeOfDay,
       ["day", "night", "evening", "unknown"] as const,
       "unknown",
     ),
-    season: toEnum(
+    season: normalizeEnum(
       obj.season,
       [
         "summer",
@@ -125,7 +172,7 @@ function normalizeOccasionContext(raw: unknown): OccasionContext {
       ] as const,
       "unknown",
     ),
-    formality: toEnum(
+    formality: normalizeEnum(
       obj.formality,
       [
         "casual",
@@ -137,17 +184,14 @@ function normalizeOccasionContext(raw: unknown): OccasionContext {
       ] as const,
       "unknown",
     ),
-    comfortPriority: toEnum(
+    comfortPriority: normalizeEnum(
       obj.comfortPriority,
       ["low", "medium", "high"] as const,
       "medium",
     ),
-    styleDirection: toStringArray(obj.styleDirection, 10),
-    avoidKeywords: toStringArray(obj.avoidKeywords, 10),
-    confidence:
-      typeof obj.confidence === "number"
-        ? Math.max(0, Math.min(1, obj.confidence))
-        : 0.6,
+    styleDirection: normalizeStringArray(obj.styleDirection, 10),
+    avoidKeywords: normalizeStringArray(obj.avoidKeywords, 10),
+    confidence: normalizeNumber(obj.confidence, 0.6),
   };
 
   return occasionContextSchema.parse(normalized);
@@ -162,20 +206,23 @@ export async function analyzeStylePhoto(input: {
   const prompt = [
     "You are analyzing a fashion photo for an AI stylist recommendation engine.",
     "The uploaded image has already passed a full-body validation gate.",
-    "Return ONLY strict JSON.",
+    "Return ONLY valid JSON.",
     "Do not give medical opinions.",
     "Focus only on visible style cues.",
     "Infer cautiously.",
     "If any field is unclear, return 'unknown'.",
-    "Fields needed:",
-    "- dominantColors: visible clothing colors only",
-    "- paletteTemperature: warm | cool | neutral | unknown",
-    "- skinToneBand: light | medium | deep | unknown",
-    "- undertone: warm | cool | neutral | unknown",
-    "- fitCues: broad cues like slim, straight, relaxed, oversized, tailored",
-    "- vibeTags: style tags like minimal, streetwear, elegant, festive, casual, sporty",
-    "- visibleGarments: broad garment labels like tee, dress, kurta, jacket, trousers",
-    "- confidence: 0 to 1",
+    "If a field can contain multiple items, return an array.",
+    "Use this exact JSON structure:",
+    "{",
+    '  "dominantColors": ["black", "white"],',
+    '  "paletteTemperature": "warm",',
+    '  "skinToneBand": "medium",',
+    '  "undertone": "neutral",',
+    '  "fitCues": ["relaxed", "straight"],',
+    '  "vibeTags": ["minimal", "casual"],',
+    '  "visibleGarments": ["tee", "trousers"],',
+    '  "confidence": 0.8',
+    "}",
     `User context gender: ${input.gender ?? "unknown"}`,
     `User-selected vibe: ${input.vibe ?? "unknown"}`,
     `User-selected category: ${input.category ?? "unknown"}`,
@@ -207,7 +254,8 @@ export async function analyzeStylePhoto(input: {
     ],
   });
 
-  return safeJsonParse(raw, imageSignalsSchema);
+  const parsed = extractJsonObject(raw);
+  return normalizeImageSignals(parsed);
 }
 
 export async function parseOccasionContext(input: {
@@ -356,18 +404,7 @@ export async function parseOccasionContext(input: {
       ],
     });
 
-    let parsed: unknown;
-
-    try {
-      parsed = JSON.parse(rawFallback);
-    } catch {
-      const match = rawFallback.match(/\{[\s\S]*\}/);
-      if (!match) {
-        throw new Error("Fallback JSON parsing failed for occasion context.");
-      }
-      parsed = JSON.parse(match[0]);
-    }
-
+    const parsed = extractJsonObject(rawFallback);
     return normalizeOccasionContext(parsed);
   }
 }
