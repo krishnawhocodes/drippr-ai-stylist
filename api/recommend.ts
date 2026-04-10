@@ -39,6 +39,37 @@ function getDefaultImageSignals(): ImageSignals {
   };
 }
 
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || error.name || "Unknown error";
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown non-serializable error";
+  }
+}
+
+function safeErrorLog(label: string, error: unknown) {
+  const message = safeErrorMessage(error);
+
+  if (error instanceof Error) {
+    console.error(label, {
+      name: error.name,
+      message,
+      stack: error.stack,
+    });
+    return;
+  }
+
+  console.error(label, { message });
+}
+
 async function fetchCandidateProducts() {
   const adminDb = getAdminDb();
 
@@ -99,10 +130,8 @@ export default async function handler(req: any, res: any) {
         });
       }
     } catch (error) {
-      console.error("recommend stage=image-analysis", error);
-      throw new Error(
-        `Image analysis failed: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
+      safeErrorLog("recommend stage=image-analysis", error);
+      throw new Error(`Image analysis failed: ${safeErrorMessage(error)}`);
     }
 
     try {
@@ -113,19 +142,15 @@ export default async function handler(req: any, res: any) {
         category: body.category,
       });
     } catch (error) {
-      console.error("recommend stage=occasion-parse", error);
-      throw new Error(
-        `Occasion parsing failed: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
+      safeErrorLog("recommend stage=occasion-parse", error);
+      throw new Error(`Occasion parsing failed: ${safeErrorMessage(error)}`);
     }
 
     try {
       products = await fetchCandidateProducts();
     } catch (error) {
-      console.error("recommend stage=firestore-fetch", error);
-      throw new Error(
-        `Inventory fetch failed: ${error instanceof Error ? error.message : "unknown error"}`,
-      );
+      safeErrorLog("recommend stage=firestore-fetch", error);
+      throw new Error(`Inventory fetch failed: ${safeErrorMessage(error)}`);
     }
 
     let rankedProducts;
@@ -141,9 +166,9 @@ export default async function handler(req: any, res: any) {
         maxResults: 12,
       });
     } catch (error) {
-      console.error("recommend stage=scoring", error);
+      safeErrorLog("recommend stage=scoring", error);
       throw new Error(
-        `Recommendation scoring failed: ${error instanceof Error ? error.message : "unknown error"}`,
+        `Recommendation scoring failed: ${safeErrorMessage(error)}`,
       );
     }
 
@@ -155,13 +180,10 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json(response);
   } catch (error) {
-    console.error("recommend fatal", error);
+    safeErrorLog("recommend fatal", error);
 
     return res.status(500).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to generate recommendations",
+      error: safeErrorMessage(error),
     });
   }
 }

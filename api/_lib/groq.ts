@@ -17,6 +17,7 @@ class GroqHttpError extends Error {
 
   constructor(status: number, responseBody: string) {
     super(`Groq request failed (${status}): ${responseBody}`);
+    this.name = "GroqHttpError";
     this.status = status;
     this.responseBody = responseBody;
   }
@@ -32,6 +33,10 @@ function requireGroqKey(): string {
   return key;
 }
 
+function safeResponseSnippet(text: string, max = 1000) {
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
 async function groqRequest(payload: Record<string, unknown>) {
   const response = await fetch(GROQ_API_URL, {
     method: "POST",
@@ -45,7 +50,7 @@ async function groqRequest(payload: Record<string, unknown>) {
   const text = await response.text();
 
   if (!response.ok) {
-    throw new GroqHttpError(response.status, text);
+    throw new GroqHttpError(response.status, safeResponseSnippet(text));
   }
 
   const data = JSON.parse(text);
