@@ -1,13 +1,13 @@
-import { adminDb } from "./_lib/firebaseAdmin.js";
-import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq.js";
-import { scoreProducts } from "./_lib/recommendation.js";
+import { adminDb } from "./_lib/firebaseAdmin.ts";
+import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq.ts";
+import { scoreProducts } from "./_lib/recommendation.ts";
 import {
   merchantProductSchema,
   recommendRequestSchema,
   recommendResponseSchema,
   type ImageSignals,
   type MerchantProduct,
-} from "./_lib/schemas.js";
+} from "./_lib/schemas.ts";
 
 function setCors(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");

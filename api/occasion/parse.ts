@@ -1,5 +1,5 @@
-import { parseOccasionContext } from "../_lib/groq.js";
-import { occasionParseRequestSchema } from "../_lib/schemas.js";
+import { parseOccasionContext } from "../_lib/groq.ts";
+import { occasionParseRequestSchema } from "../_lib/schemas.ts";
 
 function setCors(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
