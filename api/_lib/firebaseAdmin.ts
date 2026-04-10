@@ -21,10 +21,27 @@ function normalizePrivateKey(raw: string) {
     value = value.slice(1, -1);
   }
 
-  return value.replace(/\\n/g, "\n");
+  value = value.replace(/\\n/g, "\n");
+
+  if (
+    !value.includes("BEGIN PRIVATE KEY") ||
+    !value.includes("END PRIVATE KEY")
+  ) {
+    throw new Error(
+      "FIREBASE_PRIVATE_KEY is not a valid service account private key.",
+    );
+  }
+
+  return value;
 }
 
+let cachedDb: Firestore | null = null;
+
 export function getAdminDb(): Firestore {
+  if (cachedDb) {
+    return cachedDb;
+  }
+
   if (getApps().length === 0) {
     const projectId = requireEnv("FIREBASE_PROJECT_ID");
     const clientEmail = requireEnv("FIREBASE_CLIENT_EMAIL");
@@ -39,11 +56,6 @@ export function getAdminDb(): Firestore {
     });
   }
 
-  const db = getFirestore();
-
-  db.settings({
-    ignoreUndefinedProperties: true,
-  });
-
-  return db;
+  cachedDb = getFirestore();
+  return cachedDb;
 }
