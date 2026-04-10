@@ -17,16 +17,7 @@ const VIBE_KEYWORDS: Record<string, string[]> = {
     "utility",
     "graphic",
   ],
-  Minimal: [
-    "minimal",
-    "clean",
-    "solid",
-    "plain",
-    "tailored",
-    "satin",
-    "linen",
-    "classic",
-  ],
+  Minimal: ["minimal", "clean", "solid", "plain", "tailored", "classic"],
   Daily: ["daily", "everyday", "casual", "basic", "regular", "easy", "comfort"],
   Thrift: [
     "vintage",
@@ -80,8 +71,8 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
   ],
   Tees: ["tee", "t-shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt", "mini", "midi"],
-  "Sweatshirts & Hoodies": ["hoodie", "sweatshirt", "pullover"],
-  Jackets: ["jacket", "overshirt", "windbreaker", "bomber", "trucker"],
+  "Sweatshirts & Hoodies": ["hoodie", "sweatshirt", "pullover", "hood"],
+  Jackets: ["jacket", "overshirt", "windbreaker", "bomber", "trucker", "coat"],
   "Cord Set": ["set", "co-ord", "coord", "co ord", "cord set", "kurta set"],
   Athleisure: ["athleisure", "sports", "track", "active", "gym", "running"],
 };
@@ -134,15 +125,7 @@ const FORMALITY_KEYWORDS: Record<OccasionContext["formality"], string[]> = {
     "chino",
     "dress",
   ],
-  semi_formal: [
-    "dress",
-    "tailored",
-    "blazer",
-    "satin",
-    "wrap",
-    "midi",
-    "kurta set",
-  ],
+  semi_formal: ["dress", "tailored", "blazer", "wrap", "midi", "kurta set"],
   formal: ["formal", "tailored", "blazer", "shirt", "trouser", "classic"],
   festive: [
     "embroidered",
@@ -157,7 +140,7 @@ const FORMALITY_KEYWORDS: Record<OccasionContext["formality"], string[]> = {
 
 const SEASON_KEYWORDS: Record<OccasionContext["season"], string[]> = {
   summer: ["linen", "lightweight", "cotton", "breathable", "tank", "shorts"],
-  winter: ["hoodie", "sweatshirt", "jacket", "heavyweight", "knit"],
+  winter: ["hoodie", "sweatshirt", "jacket", "coat", "heavyweight", "knit"],
   monsoon: ["quick dry", "tech", "lightweight", "track"],
   spring: ["floral", "light", "cotton", "airy"],
   autumn: ["earth", "olive", "brown", "layer"],
@@ -167,7 +150,7 @@ const SEASON_KEYWORDS: Record<OccasionContext["season"], string[]> = {
 
 const TIME_KEYWORDS: Record<OccasionContext["timeOfDay"], string[]> = {
   day: ["cotton", "linen", "light", "casual"],
-  evening: ["dress", "smart", "satin", "tailored"],
+  evening: ["dress", "smart", "tailored"],
   night: ["black", "navy", "statement", "dress", "bomber", "elegant"],
   unknown: [],
 };
@@ -182,11 +165,6 @@ function normalizeText(value: string | null | undefined) {
 
 function joinProductText(product: MerchantProduct) {
   const tags = (product.tags ?? []).join(" ");
-  const imageNames = [
-    ...(product.imageUrls ?? []),
-    ...(product.images ?? []),
-  ].join(" ");
-
   return normalizeText(
     [
       product.title,
@@ -194,7 +172,6 @@ function joinProductText(product: MerchantProduct) {
       product.productType ?? "",
       product.vendor ?? "",
       tags,
-      imageNames,
     ].join(" "),
   );
 }
@@ -216,8 +193,28 @@ function priceMatches(priceRange: PriceRange, price: number) {
   return price >= 500;
 }
 
+function isTempStagedUrl(url: string | null | undefined) {
+  if (!url) return false;
+  return (
+    url.includes("shopify-staged-uploads.storage.googleapis.com") ||
+    url.includes("/tmp/")
+  );
+}
+
 function getPrimaryImage(product: MerchantProduct) {
-  return product.image ?? product.imageUrls?.[0] ?? product.images?.[0] ?? null;
+  if (product.image && !isTempStagedUrl(product.image)) return product.image;
+
+  const permanentFromImages = (product.images ?? []).find(
+    (url) => !!url && !isTempStagedUrl(url),
+  );
+  if (permanentFromImages) return permanentFromImages;
+
+  const permanentFromImageUrls = (product.imageUrls ?? []).find(
+    (url) => !!url && !isTempStagedUrl(url),
+  );
+  if (permanentFromImageUrls) return permanentFromImageUrls;
+
+  return null;
 }
 
 function inventoryAllowed(product: MerchantProduct) {
@@ -269,6 +266,7 @@ export function scoreProducts(args: {
 }): RecommendedProduct[] {
   const {
     products,
+    gender,
     vibe,
     category,
     priceRange,
@@ -290,7 +288,12 @@ export function scoreProducts(args: {
     ...occasionContext.styleDirection.map((item) => normalizeText(item)),
   ].filter(Boolean);
 
-  return products
+  const genderWords =
+    gender === "Women"
+      ? ["women", "woman", "womens", "ladies", "female", "girls", "girl"]
+      : ["men", "man", "mens", "male", "boys", "boy"];
+
+  const candidates = products
     .filter(inventoryAllowed)
     .filter(
       (product) =>
@@ -299,14 +302,28 @@ export function scoreProducts(args: {
     )
     .map((product) => {
       const text = joinProductText(product);
+      const categoryHits = countMatches(text, categoryWords);
+      const genderHits = countMatches(text, genderWords);
 
+      return { product, text, categoryHits, genderHits };
+    })
+    .filter(({ categoryHits }) => categoryHits > 0)
+    .filter(({ text, genderHits }) => {
+      if (genderHits > 0) return true;
+      return !includesMenWomenConflict(text, gender);
+    });
+
+  return candidates
+    .map(({ product, text, categoryHits, genderHits }) => {
       let score = 0;
       const reasonParts: string[] = [];
 
-      const categoryHits = countMatches(text, categoryWords);
-      if (categoryHits > 0) {
-        score += 26 + categoryHits * 3;
-        reasonParts.push("Category fit looks strong.");
+      score += 35 + categoryHits * 4;
+      reasonParts.push("Category fit looks strong.");
+
+      if (genderHits > 0) {
+        score += 10;
+        reasonParts.push("Matches the selected profile.");
       }
 
       const vibeHits = countMatches(text, vibeWords);
@@ -323,7 +340,7 @@ export function scoreProducts(args: {
 
       const formalityHits = countMatches(text, formalityWords);
       if (formalityHits > 0) {
-        score += 14 + formalityHits * 2;
+        score += 12 + formalityHits * 2;
         reasonParts.push("Formality level looks right.");
       }
 
@@ -350,7 +367,7 @@ export function scoreProducts(args: {
         imageSignals.vibeTags.map((item) => normalizeText(item)),
       );
       if (imageVibeHits > 0) {
-        score += 10 + imageVibeHits;
+        score += 8 + imageVibeHits;
         reasonParts.push("Connects well with your photo style cues.");
       }
 
@@ -361,11 +378,13 @@ export function scoreProducts(args: {
       }
 
       if (getPrimaryImage(product)) {
-        score += 2;
+        score += 3;
+      } else {
+        score -= 8;
       }
 
       if (!product.productType && !(product.tags ?? []).length) {
-        score -= 4;
+        score -= 6;
       }
 
       return {
@@ -386,4 +405,15 @@ export function scoreProducts(args: {
     .filter((product) => product.score > 0)
     .sort((a, b) => b.score - a.score || a.price - b.price)
     .slice(0, maxResults);
+}
+
+function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
+  const hasWomen =
+    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
+  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(text);
+
+  if (gender === "Women" && hasMen) return true;
+  if (gender === "Men" && hasWomen) return true;
+
+  return false;
 }
