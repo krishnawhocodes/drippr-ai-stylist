@@ -254,60 +254,225 @@ export async function analyzeStylePhoto(input: {
   return normalizeImageSignals(parsed);
 }
 
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesAny(text: string, keywords: string[]) {
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function uniqueStrings(values: string[], max = 10) {
+  return [...new Set(values.map((v) => v.trim()).filter(Boolean))].slice(
+    0,
+    max,
+  );
+}
+
+function detectEventType(text: string): string {
+  if (
+    includesAny(text, [
+      "college fest",
+      "college festival",
+      "campus fest",
+      "fest",
+    ])
+  )
+    return "college_fest";
+  if (includesAny(text, ["wedding", "shaadi", "marriage"]))
+    return "wedding_guest";
+  if (includesAny(text, ["engagement", "roka"])) return "engagement";
+  if (
+    includesAny(text, [
+      "office",
+      "client presentation",
+      "presentation",
+      "meeting",
+      "work",
+    ])
+  )
+    return "office_event";
+  if (includesAny(text, ["date", "dinner date", "date night"]))
+    return "date_night";
+  if (includesAny(text, ["party", "club", "birthday"])) return "party";
+  if (includesAny(text, ["brunch", "lunch"])) return "brunch";
+  if (includesAny(text, ["travel", "trip", "vacation", "holiday"]))
+    return "travel";
+  if (includesAny(text, ["concert", "music event", "show"])) return "concert";
+  if (includesAny(text, ["interview"])) return "interview";
+  return "general_event";
+}
+
+function detectTimeOfDay(text: string): OccasionContext["timeOfDay"] {
+  if (includesAny(text, ["night", "late night", "after dark"])) return "night";
+  if (includesAny(text, ["evening", "sunset", "dinner"])) return "evening";
+  if (includesAny(text, ["day", "daytime", "morning", "afternoon"]))
+    return "day";
+  return "unknown";
+}
+
+function detectSeason(text: string): OccasionContext["season"] {
+  if (includesAny(text, ["summer", "hot weather", "heat", "humid"]))
+    return "summer";
+  if (includesAny(text, ["winter", "cold", "chilly"])) return "winter";
+  if (includesAny(text, ["monsoon", "rain", "rainy"])) return "monsoon";
+  if (includesAny(text, ["spring"])) return "spring";
+  if (includesAny(text, ["autumn", "fall"])) return "autumn";
+  return "unknown";
+}
+
+function detectFormality(
+  text: string,
+  eventType: string,
+): OccasionContext["formality"] {
+  if (includesAny(text, ["formal", "black tie", "very formal"]))
+    return "formal";
+  if (includesAny(text, ["semi formal", "semi-formal"])) return "semi_formal";
+  if (includesAny(text, ["smart casual", "smart-casual"]))
+    return "smart_casual";
+  if (includesAny(text, ["festive", "traditional", "ethnic"])) return "festive";
+  if (includesAny(text, ["casual", "comfortable", "easygoing"]))
+    return "casual";
+
+  if (eventType === "wedding_guest" || eventType === "engagement")
+    return "festive";
+  if (eventType === "office_event" || eventType === "interview")
+    return "smart_casual";
+  if (eventType === "date_night" || eventType === "party") return "semi_formal";
+  if (eventType === "college_fest" || eventType === "travel") return "casual";
+
+  return "unknown";
+}
+
+function detectComfortPriority(
+  text: string,
+  season: OccasionContext["season"],
+): OccasionContext["comfortPriority"] {
+  if (
+    includesAny(text, [
+      "comfortable",
+      "comfort",
+      "breathable",
+      "all day",
+      "long hours",
+      "walking",
+      "heat",
+      "humid",
+      "summer",
+      "lightweight",
+    ])
+  ) {
+    return "high";
+  }
+
+  if (season === "summer" || season === "monsoon") return "high";
+  return "medium";
+}
+
+function detectStyleDirection(
+  text: string,
+  eventType: string,
+  formality: OccasionContext["formality"],
+  season: OccasionContext["season"],
+  timeOfDay: OccasionContext["timeOfDay"],
+): string[] {
+  const directions: string[] = [];
+
+  if (includesAny(text, ["trendy", "stylish", "fashionable"]))
+    directions.push("trendy");
+  if (includesAny(text, ["youthful", "young", "college"]))
+    directions.push("youthful");
+  if (includesAny(text, ["breathable", "lightweight", "airy"]))
+    directions.push("breathable");
+  if (includesAny(text, ["elegant", "graceful"])) directions.push("elegant");
+  if (includesAny(text, ["polished", "sharp"])) directions.push("polished");
+  if (includesAny(text, ["minimal", "clean"])) directions.push("minimal");
+  if (includesAny(text, ["street", "streetwear"]))
+    directions.push("streetwear");
+  if (includesAny(text, ["traditional", "ethnic"]))
+    directions.push("traditional");
+  if (includesAny(text, ["bold", "statement"])) directions.push("statement");
+  if (includesAny(text, ["comfortable", "easy"]))
+    directions.push("comfortable");
+
+  if (eventType === "college_fest") directions.push("youthful", "trendy");
+  if (eventType === "office_event") directions.push("polished");
+  if (eventType === "date_night") directions.push("elegant");
+  if (eventType === "party") directions.push("statement");
+  if (eventType === "travel") directions.push("comfortable");
+
+  if (formality === "festive") directions.push("festive");
+  if (formality === "smart_casual") directions.push("smart");
+  if (formality === "semi_formal") directions.push("refined");
+  if (formality === "casual") directions.push("easygoing");
+
+  if (season === "summer") directions.push("breathable");
+  if (season === "winter") directions.push("layered");
+  if (timeOfDay === "night") directions.push("evening_ready");
+
+  return uniqueStrings(directions, 10);
+}
+
+function detectAvoidKeywords(text: string): string[] {
+  const avoids: string[] = [];
+
+  if (includesAny(text, ["not overdressed", "don't want to look overdressed"]))
+    avoids.push("overdressed");
+  if (includesAny(text, ["not too flashy", "avoid flashy"]))
+    avoids.push("flashy");
+  if (includesAny(text, ["avoid black", "no black"])) avoids.push("black");
+  if (includesAny(text, ["avoid heels", "no heels"])) avoids.push("heels");
+  if (includesAny(text, ["not too formal"])) avoids.push("too_formal");
+  if (includesAny(text, ["not too casual"])) avoids.push("too_casual");
+
+  return uniqueStrings(avoids, 10);
+}
+
 export async function parseOccasionContext(input: {
   occasion: string;
   gender?: Gender;
   vibe?: string;
   category?: string;
 }): Promise<OccasionContext> {
-  const prompt = [
-    "Convert the user's occasion description into recommendation-ready structured fashion context.",
-    "Return ONLY valid JSON.",
-    "Do not include markdown.",
-    "Do not include comments.",
-    "Use conservative inference.",
-    "If the user does not mention a value clearly, use 'unknown'.",
-    "If the user gives a short occasion like wedding, party, office, college fest, still return the full JSON object.",
-    "Use this exact JSON structure:",
-    "{",
-    '  "eventType": "college_fest",',
-    '  "timeOfDay": "night",',
-    '  "season": "summer",',
-    '  "formality": "smart_casual",',
-    '  "comfortPriority": "high",',
-    '  "styleDirection": ["trendy", "breathable", "youthful"],',
-    '  "avoidKeywords": [],',
-    '  "confidence": 0.8',
-    "}",
-    "Allowed values:",
-    "- timeOfDay: day | night | evening | unknown",
-    "- season: summer | winter | monsoon | spring | autumn | all_season | unknown",
-    "- formality: casual | smart_casual | semi_formal | formal | festive | unknown",
-    "- comfortPriority: low | medium | high",
-    `User gender context: ${input.gender ?? "unknown"}`,
-    `User-selected vibe: ${input.vibe ?? "unknown"}`,
-    `User-selected category: ${input.category ?? "unknown"}`,
-    `Occasion text: ${input.occasion}`,
-  ].join("\n");
+  const text = normalizeText(input.occasion);
 
-  const raw = await groqRequest({
-    model: TEXT_MODEL,
-    temperature: 0,
-    max_tokens: 250,
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a precise fashion occasion parser that returns only JSON.",
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
+  const eventType = detectEventType(text);
+  const timeOfDay = detectTimeOfDay(text);
+  const season = detectSeason(text);
+  const formality = detectFormality(text, eventType);
+  const comfortPriority = detectComfortPriority(text, season);
+  const styleDirection = detectStyleDirection(
+    text,
+    eventType,
+    formality,
+    season,
+    timeOfDay,
+  );
+  const avoidKeywords = detectAvoidKeywords(text);
+
+  const signalCount = [
+    eventType !== "general_event",
+    timeOfDay !== "unknown",
+    season !== "unknown",
+    formality !== "unknown",
+    styleDirection.length > 0,
+    avoidKeywords.length > 0,
+  ].filter(Boolean).length;
+
+  const confidence = Math.max(0.45, Math.min(0.9, 0.45 + signalCount * 0.08));
+
+  return occasionContextSchema.parse({
+    eventType,
+    timeOfDay,
+    season,
+    formality,
+    comfortPriority,
+    styleDirection,
+    avoidKeywords,
+    confidence,
   });
-
-  const parsed = extractJsonObject(raw);
-  return normalizeOccasionContext(parsed);
 }
