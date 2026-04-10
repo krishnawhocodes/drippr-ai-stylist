@@ -4,7 +4,7 @@ import type {
   OccasionContext,
   PriceRange,
   RecommendedProduct,
-} from "./schemas";
+} from "./schemas.js";
 
 const VIBE_KEYWORDS: Record<string, string[]> = {
   Streetwear: [
@@ -290,7 +290,7 @@ export function scoreProducts(args: {
     ...occasionContext.styleDirection.map((item) => normalizeText(item)),
   ].filter(Boolean);
 
-  const ranked = products
+  return products
     .filter(inventoryAllowed)
     .filter(
       (product) =>
@@ -368,7 +368,7 @@ export function scoreProducts(args: {
         score -= 4;
       }
 
-      const recommended: RecommendedProduct = {
+      return {
         id: product.id,
         title: product.title || "Untitled product",
         description: product.description ?? "",
@@ -382,12 +382,8 @@ export function scoreProducts(args: {
         reason: buildReason(reasonParts),
         shopifyProductId: product.shopifyProductId ?? null,
       };
-
-      return recommended;
     })
     .filter((product) => product.score > 0)
     .sort((a, b) => b.score - a.score || a.price - b.price)
     .slice(0, maxResults);
-
-  return ranked;
 }
