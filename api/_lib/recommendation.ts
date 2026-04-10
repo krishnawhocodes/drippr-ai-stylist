@@ -155,6 +155,39 @@ const TIME_KEYWORDS: Record<OccasionContext["timeOfDay"], string[]> = {
   unknown: [],
 };
 
+export type DebugProductResult = {
+  id: string;
+  title: string;
+  price: number;
+  currency: string;
+  status: string | null | undefined;
+  sku: string | null | undefined;
+  merchantId: string | null | undefined;
+  productType: string | null | undefined;
+  imageUrl: string | null;
+  imageSource: "image" | "images" | "imageUrls" | "none";
+  text: string;
+  budgetMatched: boolean;
+  inventoryAllowed: boolean;
+  categoryMatched: boolean;
+  genderMatched: boolean;
+  genderConflict: boolean;
+  categoryHits: number;
+  genderHits: number;
+  vibeHits: number;
+  occasionHits: number;
+  formalityHits: number;
+  seasonHits: number;
+  timeHits: number;
+  fitHits: number;
+  imageVibeHits: number;
+  colorHits: number;
+  score: number;
+  selected: boolean;
+  reasons: string[];
+  rejectedReasons: string[];
+};
+
 function normalizeText(value: string | null | undefined) {
   return (value ?? "")
     .toLowerCase()
@@ -201,20 +234,29 @@ function isTempStagedUrl(url: string | null | undefined) {
   );
 }
 
-function getPrimaryImage(product: MerchantProduct) {
-  if (product.image && !isTempStagedUrl(product.image)) return product.image;
+function getPrimaryImageWithSource(product: MerchantProduct): {
+  imageUrl: string | null;
+  imageSource: "image" | "images" | "imageUrls" | "none";
+} {
+  if (product.image && !isTempStagedUrl(product.image)) {
+    return { imageUrl: product.image, imageSource: "image" };
+  }
 
   const permanentFromImages = (product.images ?? []).find(
     (url) => !!url && !isTempStagedUrl(url),
   );
-  if (permanentFromImages) return permanentFromImages;
+  if (permanentFromImages) {
+    return { imageUrl: permanentFromImages, imageSource: "images" };
+  }
 
   const permanentFromImageUrls = (product.imageUrls ?? []).find(
     (url) => !!url && !isTempStagedUrl(url),
   );
-  if (permanentFromImageUrls) return permanentFromImageUrls;
+  if (permanentFromImageUrls) {
+    return { imageUrl: permanentFromImageUrls, imageSource: "imageUrls" };
+  }
 
-  return null;
+  return { imageUrl: null, imageSource: "none" };
 }
 
 function inventoryAllowed(product: MerchantProduct) {
@@ -254,7 +296,18 @@ function buildReason(parts: string[]) {
     : "Strong fit for your occasion and budget.";
 }
 
-export function scoreProducts(args: {
+function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
+  const hasWomen =
+    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
+  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(text);
+
+  if (gender === "Women" && hasMen) return true;
+  if (gender === "Men" && hasWomen) return true;
+
+  return false;
+}
+
+function buildDebugResults(args: {
   products: MerchantProduct[];
   gender: "Women" | "Men";
   vibe: string;
@@ -262,8 +315,7 @@ export function scoreProducts(args: {
   priceRange: PriceRange;
   occasionContext: OccasionContext;
   imageSignals: ImageSignals;
-  maxResults?: number;
-}): RecommendedProduct[] {
+}): DebugProductResult[] {
   const {
     products,
     gender,
@@ -272,7 +324,6 @@ export function scoreProducts(args: {
     priceRange,
     occasionContext,
     imageSignals,
-    maxResults = 12,
   } = args;
 
   const vibeWords = VIBE_KEYWORDS[vibe] ?? [normalizeText(vibe)];
@@ -293,91 +344,92 @@ export function scoreProducts(args: {
       ? ["women", "woman", "womens", "ladies", "female", "girls", "girl"]
       : ["men", "man", "mens", "male", "boys", "boy"];
 
-  const candidates = products
-    .filter(inventoryAllowed)
-    .filter(
-      (product) =>
-        typeof product.price === "number" &&
-        priceMatches(priceRange, product.price),
-    )
-    .map((product) => {
-      const text = joinProductText(product);
-      const categoryHits = countMatches(text, categoryWords);
-      const genderHits = countMatches(text, genderWords);
+  return products.map((product) => {
+    const text = joinProductText(product);
+    const categoryHits = countMatches(text, categoryWords);
+    const genderHits = countMatches(text, genderWords);
+    const vibeHits = countMatches(text, vibeWords);
+    const occasionHits = countMatches(text, occasionWords);
+    const formalityHits = countMatches(text, formalityWords);
+    const seasonHits = countMatches(text, seasonWords);
+    const timeHits = countMatches(text, timeWords);
+    const fitHits = countMatches(text, fitWords);
+    const imageVibeHits = countMatches(
+      text,
+      imageSignals.vibeTags.map((item) => normalizeText(item)),
+    );
+    const colorHits = deriveColorMatches(text, imageSignals);
 
-      return { product, text, categoryHits, genderHits };
-    })
-    .filter(({ categoryHits }) => categoryHits > 0)
-    .filter(({ text, genderHits }) => {
-      if (genderHits > 0) return true;
-      return !includesMenWomenConflict(text, gender);
-    });
+    const budgetMatched =
+      typeof product.price === "number" &&
+      priceMatches(priceRange, product.price);
+    const allowed = inventoryAllowed(product);
+    const categoryMatched = categoryHits > 0;
+    const genderConflict = includesMenWomenConflict(text, gender);
+    const genderMatched = genderHits > 0 || !genderConflict;
 
-  return candidates
-    .map(({ product, text, categoryHits, genderHits }) => {
-      let score = 0;
-      const reasonParts: string[] = [];
+    const { imageUrl, imageSource } = getPrimaryImageWithSource(product);
 
+    let score = 0;
+    const reasons: string[] = [];
+    const rejectedReasons: string[] = [];
+
+    if (!allowed) rejectedReasons.push("Inventory/status not allowed");
+    if (!budgetMatched) rejectedReasons.push("Outside strict budget");
+    if (!categoryMatched) rejectedReasons.push("No category match");
+    if (!genderMatched) rejectedReasons.push("Gender conflict");
+    if (!imageUrl) rejectedReasons.push("No usable image");
+
+    if (allowed && budgetMatched && categoryMatched && genderMatched) {
       score += 35 + categoryHits * 4;
-      reasonParts.push("Category fit looks strong.");
+      reasons.push("Category fit looks strong.");
 
       if (genderHits > 0) {
         score += 10;
-        reasonParts.push("Matches the selected profile.");
+        reasons.push("Matches the selected profile.");
       }
 
-      const vibeHits = countMatches(text, vibeWords);
       if (vibeHits > 0) {
         score += 18 + vibeHits * 2;
-        reasonParts.push("Matches your selected vibe.");
+        reasons.push("Matches your selected vibe.");
       }
 
-      const occasionHits = countMatches(text, occasionWords);
       if (occasionHits > 0) {
         score += 16 + occasionHits * 2;
-        reasonParts.push("Aligned with the occasion context.");
+        reasons.push("Aligned with the occasion context.");
       }
 
-      const formalityHits = countMatches(text, formalityWords);
       if (formalityHits > 0) {
         score += 12 + formalityHits * 2;
-        reasonParts.push("Formality level looks right.");
+        reasons.push("Formality level looks right.");
       }
 
-      const seasonHits = countMatches(text, seasonWords);
       if (seasonHits > 0) {
         score += 8 + seasonHits;
-        reasonParts.push("Works for the season.");
+        reasons.push("Works for the season.");
       }
 
-      const timeHits = countMatches(text, timeWords);
       if (timeHits > 0) {
         score += 6 + timeHits;
-        reasonParts.push("Fits the time of day.");
+        reasons.push("Fits the time of day.");
       }
 
-      const fitHits = countMatches(text, fitWords);
       if (fitHits > 0) {
         score += 8 + fitHits;
-        reasonParts.push("Shape and fit cues are compatible.");
+        reasons.push("Shape and fit cues are compatible.");
       }
 
-      const imageVibeHits = countMatches(
-        text,
-        imageSignals.vibeTags.map((item) => normalizeText(item)),
-      );
       if (imageVibeHits > 0) {
         score += 8 + imageVibeHits;
-        reasonParts.push("Connects well with your photo style cues.");
+        reasons.push("Connects well with your photo style cues.");
       }
 
-      const colorHits = deriveColorMatches(text, imageSignals);
       if (colorHits > 0) {
         score += 4 + colorHits;
-        reasonParts.push("Color direction is compatible.");
+        reasons.push("Color direction is compatible.");
       }
 
-      if (getPrimaryImage(product)) {
+      if (imageUrl) {
         score += 3;
       } else {
         score -= 8;
@@ -385,35 +437,90 @@ export function scoreProducts(args: {
 
       if (!product.productType && !(product.tags ?? []).length) {
         score -= 6;
+        rejectedReasons.push("Weak metadata");
       }
+    }
 
-      return {
-        id: product.id,
-        title: product.title || "Untitled product",
-        description: product.description ?? "",
-        price: product.price ?? 0,
-        currency: product.currency ?? "INR",
-        imageUrl: getPrimaryImage(product),
-        merchantId: product.merchantId ?? "",
-        sku: product.sku ?? "",
-        vendor: product.vendor ?? "DRIPPR Marketplace",
-        score,
-        reason: buildReason(reasonParts),
-        shopifyProductId: product.shopifyProductId ?? null,
-      };
-    })
-    .filter((product) => product.score > 0)
-    .sort((a, b) => b.score - a.score || a.price - b.price)
-    .slice(0, maxResults);
+    const selected =
+      allowed && budgetMatched && categoryMatched && genderMatched && score > 0;
+
+    return {
+      id: product.id,
+      title: product.title || "Untitled product",
+      price: product.price ?? 0,
+      currency: product.currency ?? "INR",
+      status: product.status,
+      sku: product.sku,
+      merchantId: product.merchantId,
+      productType: product.productType,
+      imageUrl,
+      imageSource,
+      text,
+      budgetMatched,
+      inventoryAllowed: allowed,
+      categoryMatched,
+      genderMatched,
+      genderConflict,
+      categoryHits,
+      genderHits,
+      vibeHits,
+      occasionHits,
+      formalityHits,
+      seasonHits,
+      timeHits,
+      fitHits,
+      imageVibeHits,
+      colorHits,
+      score,
+      selected,
+      reasons,
+      rejectedReasons,
+    };
+  });
 }
 
-function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
-  const hasWomen =
-    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
-  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(text);
+export function scoreProducts(args: {
+  products: MerchantProduct[];
+  gender: "Women" | "Men";
+  vibe: string;
+  category: string;
+  priceRange: PriceRange;
+  occasionContext: OccasionContext;
+  imageSignals: ImageSignals;
+  maxResults?: number;
+}): RecommendedProduct[] {
+  const debugResults = buildDebugResults(args);
 
-  if (gender === "Women" && hasMen) return true;
-  if (gender === "Men" && hasWomen) return true;
+  return debugResults
+    .filter((item) => item.selected)
+    .sort((a, b) => b.score - a.score || a.price - b.price)
+    .slice(0, args.maxResults ?? 12)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: "",
+      price: item.price,
+      currency: item.currency,
+      imageUrl: item.imageUrl,
+      merchantId: item.merchantId ?? "",
+      sku: item.sku ?? "",
+      vendor: "DRIPPR Marketplace",
+      score: item.score,
+      reason: buildReason(item.reasons),
+      shopifyProductId: null,
+    }));
+}
 
-  return false;
+export function debugScoreProducts(args: {
+  products: MerchantProduct[];
+  gender: "Women" | "Men";
+  vibe: string;
+  category: string;
+  priceRange: PriceRange;
+  occasionContext: OccasionContext;
+  imageSignals: ImageSignals;
+}) {
+  return buildDebugResults(args).sort(
+    (a, b) => b.score - a.score || a.price - b.price,
+  );
 }
