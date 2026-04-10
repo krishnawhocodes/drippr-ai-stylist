@@ -78,7 +78,7 @@ export const photoAnalyzeRequestSchema = z.object({
 });
 
 export const occasionParseRequestSchema = z.object({
-  occasion: z.string().min(8).max(800),
+  occasion: z.string().trim().min(2).max(800),
   gender: genderSchema.optional(),
   vibe: z.string().min(1).max(80).optional(),
   category: z.string().min(1).max(120).optional(),
@@ -88,7 +88,7 @@ export const recommendRequestSchema = z.object({
   gender: genderSchema,
   vibe: z.string().min(1).max(80),
   category: z.string().min(1).max(120),
-  occasion: z.string().min(8).max(800),
+  occasion: z.string().trim().min(2).max(800),
   priceRange: priceRangeSchema,
   imageDataUrl: base64ImageSchema.nullable().optional().default(null),
   photoValidation: photoValidationResultSchema

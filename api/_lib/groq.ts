@@ -75,10 +75,6 @@ function extractJsonObject(raw: string): unknown {
   }
 }
 
-function safeJsonParse<T>(raw: string, schema: z.ZodSchema<T>): T {
-  return schema.parse(extractJsonObject(raw));
-}
-
 function normalizeStringArray(value: unknown, max = 8): string[] {
   if (Array.isArray(value)) {
     return value
@@ -264,147 +260,54 @@ export async function parseOccasionContext(input: {
   vibe?: string;
   category?: string;
 }): Promise<OccasionContext> {
-  const jsonSchema = {
-    name: "occasion_context",
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        eventType: { type: "string" },
-        timeOfDay: {
-          type: "string",
-          enum: ["day", "night", "evening", "unknown"],
-        },
-        season: {
-          type: "string",
-          enum: [
-            "summer",
-            "winter",
-            "monsoon",
-            "spring",
-            "autumn",
-            "all_season",
-            "unknown",
-          ],
-        },
-        formality: {
-          type: "string",
-          enum: [
-            "casual",
-            "smart_casual",
-            "semi_formal",
-            "formal",
-            "festive",
-            "unknown",
-          ],
-        },
-        comfortPriority: { type: "string", enum: ["low", "medium", "high"] },
-        styleDirection: {
-          type: "array",
-          items: { type: "string" },
-          maxItems: 10,
-        },
-        avoidKeywords: {
-          type: "array",
-          items: { type: "string" },
-          maxItems: 10,
-        },
-        confidence: { type: "number" },
-      },
-      required: [
-        "eventType",
-        "timeOfDay",
-        "season",
-        "formality",
-        "comfortPriority",
-        "styleDirection",
-        "avoidKeywords",
-        "confidence",
-      ],
-    },
-    strict: true,
-  };
-
-  const basePrompt = [
+  const prompt = [
     "Convert the user's occasion description into recommendation-ready structured fashion context.",
-    "Return no prose.",
+    "Return ONLY valid JSON.",
+    "Do not include markdown.",
+    "Do not include comments.",
     "Use conservative inference.",
     "If the user does not mention a value clearly, use 'unknown'.",
-    "eventType should be a short snake_case label such as college_fest, wedding_guest, office_presentation, date_night.",
-    "styleDirection should contain concise style goals.",
-    "avoidKeywords should contain things that should be avoided if clearly implied by the user.",
+    "If the user gives a short occasion like wedding, party, office, college fest, still return the full JSON object.",
+    "Use this exact JSON structure:",
+    "{",
+    '  "eventType": "college_fest",',
+    '  "timeOfDay": "night",',
+    '  "season": "summer",',
+    '  "formality": "smart_casual",',
+    '  "comfortPriority": "high",',
+    '  "styleDirection": ["trendy", "breathable", "youthful"],',
+    '  "avoidKeywords": [],',
+    '  "confidence": 0.8',
+    "}",
+    "Allowed values:",
+    "- timeOfDay: day | night | evening | unknown",
+    "- season: summer | winter | monsoon | spring | autumn | all_season | unknown",
+    "- formality: casual | smart_casual | semi_formal | formal | festive | unknown",
+    "- comfortPriority: low | medium | high",
     `User gender context: ${input.gender ?? "unknown"}`,
     `User-selected vibe: ${input.vibe ?? "unknown"}`,
     `User-selected category: ${input.category ?? "unknown"}`,
     `Occasion text: ${input.occasion}`,
   ].join("\n");
 
-  try {
-    const raw = await groqRequest({
-      model: TEXT_MODEL,
-      temperature: 0.1,
-      max_tokens: 300,
-      response_format: {
-        type: "json_schema",
-        json_schema: jsonSchema,
+  const raw = await groqRequest({
+    model: TEXT_MODEL,
+    temperature: 0,
+    max_tokens: 250,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are a precise fashion occasion parser that returns only JSON.",
       },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a precise occasion parser for a fashion recommendation engine.",
-        },
-        {
-          role: "user",
-          content: basePrompt,
-        },
-      ],
-    });
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  });
 
-    return safeJsonParse(raw, occasionContextSchema);
-  } catch (error) {
-    const isSchemaFailure =
-      error instanceof GroqHttpError &&
-      error.status === 400 &&
-      error.responseBody.includes("json_validate_failed");
-
-    if (!isSchemaFailure) {
-      throw error;
-    }
-
-    const fallbackPrompt = [
-      "Return ONLY a valid JSON object.",
-      "Do not include markdown.",
-      "Do not include comments.",
-      "Use these keys exactly:",
-      "eventType, timeOfDay, season, formality, comfortPriority, styleDirection, avoidKeywords, confidence",
-      "Allowed values:",
-      "- timeOfDay: day | night | evening | unknown",
-      "- season: summer | winter | monsoon | spring | autumn | all_season | unknown",
-      "- formality: casual | smart_casual | semi_formal | formal | festive | unknown",
-      "- comfortPriority: low | medium | high",
-      "If unsure, choose unknown or medium.",
-      basePrompt,
-    ].join("\n");
-
-    const rawFallback = await groqRequest({
-      model: TEXT_MODEL,
-      temperature: 0,
-      max_tokens: 300,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "You return only JSON objects for fashion occasion parsing.",
-        },
-        {
-          role: "user",
-          content: fallbackPrompt,
-        },
-      ],
-    });
-
-    const parsed = extractJsonObject(rawFallback);
-    return normalizeOccasionContext(parsed);
-  }
+  const parsed = extractJsonObject(raw);
+  return normalizeOccasionContext(parsed);
 }
