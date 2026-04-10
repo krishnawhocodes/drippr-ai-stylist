@@ -8,15 +8,22 @@ function getApiBaseUrl() {
 }
 
 async function readError(response: Response) {
+  const raw = await response.text();
+
+  if (!raw) {
+    return `Request failed with status ${response.status}`;
+  }
+
   try {
-    const data = await response.json();
+    const data = JSON.parse(raw);
     return (
       data?.error ||
       data?.message ||
+      data?.details ||
       `Request failed with status ${response.status}`
     );
   } catch {
-    return `Request failed with status ${response.status}`;
+    return raw.slice(0, 500);
   }
 }
 

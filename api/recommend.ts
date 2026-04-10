@@ -9,6 +9,10 @@ import {
   type MerchantProduct,
 } from "./_lib/schemas.js";
 
+export const config = {
+  maxDuration: 60,
+};
+
 function setCors(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
@@ -81,34 +85,67 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    const [imageSignals, occasionContext, products] = await Promise.all([
-      body.imageDataUrl
-        ? analyzeStylePhoto({
-            imageDataUrl: body.imageDataUrl,
-            gender: body.gender,
-            vibe: body.vibe,
-            category: body.category,
-          })
-        : Promise.resolve(getDefaultImageSignals()),
-      parseOccasionContext({
+    let imageSignals: ImageSignals = getDefaultImageSignals();
+    let occasionContext;
+    let products: MerchantProduct[] = [];
+
+    try {
+      if (body.imageDataUrl) {
+        imageSignals = await analyzeStylePhoto({
+          imageDataUrl: body.imageDataUrl,
+          gender: body.gender,
+          vibe: body.vibe,
+          category: body.category,
+        });
+      }
+    } catch (error) {
+      console.error("recommend stage=image-analysis", error);
+      throw new Error(
+        `Image analysis failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+
+    try {
+      occasionContext = await parseOccasionContext({
         occasion: body.occasion,
         gender: body.gender,
         vibe: body.vibe,
         category: body.category,
-      }),
-      fetchCandidateProducts(),
-    ]);
+      });
+    } catch (error) {
+      console.error("recommend stage=occasion-parse", error);
+      throw new Error(
+        `Occasion parsing failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
 
-    const rankedProducts = scoreProducts({
-      products,
-      gender: body.gender,
-      vibe: body.vibe,
-      category: body.category,
-      priceRange: body.priceRange,
-      occasionContext,
-      imageSignals,
-      maxResults: 12,
-    });
+    try {
+      products = await fetchCandidateProducts();
+    } catch (error) {
+      console.error("recommend stage=firestore-fetch", error);
+      throw new Error(
+        `Inventory fetch failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
+
+    let rankedProducts;
+    try {
+      rankedProducts = scoreProducts({
+        products,
+        gender: body.gender,
+        vibe: body.vibe,
+        category: body.category,
+        priceRange: body.priceRange,
+        occasionContext,
+        imageSignals,
+        maxResults: 12,
+      });
+    } catch (error) {
+      console.error("recommend stage=scoring", error);
+      throw new Error(
+        `Recommendation scoring failed: ${error instanceof Error ? error.message : "unknown error"}`,
+      );
+    }
 
     const response = recommendResponseSchema.parse({
       imageSignals,
@@ -118,15 +155,13 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json(response);
   } catch (error) {
-    console.error("recommend error", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to generate recommendations";
+    console.error("recommend fatal", error);
 
     return res.status(500).json({
-      error: message,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to generate recommendations",
     });
   }
 }
