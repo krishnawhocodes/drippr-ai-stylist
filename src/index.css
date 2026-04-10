@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 96%;
+
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 96%;
+
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 18 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 18 100% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 18 100% 50%;
+
+    --radius: 0.75rem;
+
+    --drippr-orange: 18 100% 50%;
+    --drippr-glow: 18 100% 50%;
+    --glass-bg: 0 0% 8%;
+    --glass-border: 0 0% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient-orange {
+    background: linear-gradient(135deg, hsl(18 100% 50%), hsl(30 100% 60%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-orange {
+    box-shadow: 0 0 60px 20px hsla(18, 100%, 50%, 0.15),
+                0 0 120px 40px hsla(18, 100%, 50%, 0.08);
+  }
+
+  .glow-orange-sm {
+    box-shadow: 0 0 20px 4px hsla(18, 100%, 50%, 0.2);
+  }
+
+  .glass-card {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--glass-bg) / 0.8),
+      hsl(var(--background) / 0.92)
+    );
+    border: 1px solid hsl(var(--glass-border) / 0.5);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.4),
+                inset 0 1px 0 hsla(0, 0%, 100%, 0.05);
+  }
+
+  .smooth-layer {
+    transform: translate3d(0, 0, 0);
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+  }
+
+  .grain-overlay {
+    position: relative;
+  }
+  .grain-overlay::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .chip-base {
+    @apply px-5 py-2.5 rounded-full text-sm font-medium cursor-pointer
+           select-none
+           border border-[hsla(0,0%,25%,0.5)]
+           bg-[hsla(0,0%,10%,0.6)];
+    backdrop-filter: blur(8px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .chip-base:hover {
+    @apply border-[hsla(0,0%,35%,0.7)] bg-[hsla(0,0%,14%,0.7)];
+    transform: translateY(-1px);
+  }
+  .chip-base:active {
+    transform: scale(0.95) translateY(0);
+    transition-duration: 0.1s;
+  }
+  .chip-selected {
+    @apply bg-primary border-primary text-primary-foreground;
+    box-shadow: 0 0 20px 4px hsla(18, 100%, 50%, 0.25),
+                inset 0 1px 2px hsla(0, 0%, 0%, 0.2);
+  }
+
+  .shimmer-bar {
+    background: linear-gradient(
+      90deg,
+      hsla(0, 0%, 15%, 0.5) 0%,
+      hsla(0, 0%, 25%, 0.5) 50%,
+      hsla(0, 0%, 15%, 0.5) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.2s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  .corner-glow {
+    position: relative;
+  }
+  .corner-glow::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    right: -200px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, hsla(18, 100%, 50%, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes typewriter-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
