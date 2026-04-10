@@ -125,7 +125,16 @@ const FORMALITY_KEYWORDS: Record<OccasionContext["formality"], string[]> = {
     "chino",
     "dress",
   ],
-  semi_formal: ["dress", "tailored", "blazer", "wrap", "midi", "kurta set"],
+  semi_formal: [
+    "dress",
+    "tailored",
+    "blazer",
+    "wrap",
+    "midi",
+    "kurta set",
+    "party",
+    "elegant",
+  ],
   formal: ["formal", "tailored", "blazer", "shirt", "trouser", "classic"],
   festive: [
     "embroidered",
@@ -151,7 +160,7 @@ const SEASON_KEYWORDS: Record<OccasionContext["season"], string[]> = {
 const TIME_KEYWORDS: Record<OccasionContext["timeOfDay"], string[]> = {
   day: ["cotton", "linen", "light", "casual"],
   evening: ["dress", "smart", "tailored"],
-  night: ["black", "navy", "statement", "dress", "bomber", "elegant"],
+  night: ["black", "navy", "statement", "dress", "bomber", "elegant", "party"],
   unknown: [],
 };
 
@@ -429,10 +438,25 @@ function buildDebugResults(args: {
         reasons.push("Color direction is compatible.");
       }
 
+      if (
+        occasionContext.formality === "semi_formal" &&
+        (text.includes("loungewear") ||
+          text.includes("airport look") ||
+          text.includes("everyday"))
+      ) {
+        score -= 18;
+        rejectedReasons.push("Too casual for the requested occasion.");
+      }
+
+      if (occasionContext.timeOfDay === "night" && text.includes("gym")) {
+        score -= 12;
+        rejectedReasons.push("Too sporty for this night occasion.");
+      }
+
       if (imageUrl) {
         score += 3;
       } else {
-        score -= 8;
+        score -= 20;
       }
 
       if (!product.productType && !(product.tags ?? []).length) {
@@ -442,7 +466,12 @@ function buildDebugResults(args: {
     }
 
     const selected =
-      allowed && budgetMatched && categoryMatched && genderMatched && score > 0;
+      allowed &&
+      budgetMatched &&
+      categoryMatched &&
+      genderMatched &&
+      Boolean(imageUrl) &&
+      score >= 45;
 
     return {
       id: product.id,
