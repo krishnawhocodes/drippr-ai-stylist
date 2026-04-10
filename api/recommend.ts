@@ -116,14 +116,14 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "category-fallback-v3",
+        engineVersion: "category-hardstop-v4",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
         poolStage: pool.stage,
         baseEligibleCount: pool.counts.baseEligible,
         strictProductTypeCount: pool.counts.strictProductType,
-        softTextMatchCount: pool.counts.softTextMatch,
+        softTitleTagMatchCount: pool.counts.softTitleTagMatch,
         curatedPoolCount: pool.products.length,
       },
     });
