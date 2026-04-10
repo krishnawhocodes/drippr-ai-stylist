@@ -1,5 +1,5 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -11,28 +11,39 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function getFirebaseApp() {
-  if (getApps().length > 0) {
-    return getApps()[0];
+function normalizePrivateKey(raw: string) {
+  let value = raw.trim();
+
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
   }
 
-  const projectId = requireEnv("FIREBASE_PROJECT_ID");
-  const clientEmail = requireEnv("FIREBASE_CLIENT_EMAIL");
-  const privateKey = requireEnv("FIREBASE_PRIVATE_KEY").replace(/\\n/g, "\n");
-
-  return initializeApp({
-    credential: cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
-  });
+  return value.replace(/\\n/g, "\n");
 }
 
-export const adminApp = getFirebaseApp();
+export function getAdminDb(): Firestore {
+  if (getApps().length === 0) {
+    const projectId = requireEnv("FIREBASE_PROJECT_ID");
+    const clientEmail = requireEnv("FIREBASE_CLIENT_EMAIL");
+    const privateKey = normalizePrivateKey(requireEnv("FIREBASE_PRIVATE_KEY"));
 
-export const adminDb = getFirestore(adminApp);
+    initializeApp({
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey,
+      }),
+    });
+  }
 
-adminDb.settings({
-  ignoreUndefinedProperties: true,
-});
+  const db = getFirestore();
+
+  db.settings({
+    ignoreUndefinedProperties: true,
+  });
+
+  return db;
+}

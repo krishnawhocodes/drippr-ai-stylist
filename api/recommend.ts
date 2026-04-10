@@ -1,4 +1,4 @@
-import { adminDb } from "./_lib/firebaseAdmin.js";
+import { getAdminDb } from "./_lib/firebaseAdmin.js";
 import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq.js";
 import { scoreProducts } from "./_lib/recommendation.js";
 import {
@@ -36,6 +36,8 @@ function getDefaultImageSignals(): ImageSignals {
 }
 
 async function fetchCandidateProducts() {
+  const adminDb = getAdminDb();
+
   const snapshot = await adminDb
     .collection("merchantProducts")
     .where("status", "in", ["active", "approved"])
@@ -117,11 +119,14 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json(response);
   } catch (error) {
     console.error("recommend error", error);
-    return res.status(400).json({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Failed to generate recommendations",
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to generate recommendations";
+
+    return res.status(500).json({
+      error: message,
     });
   }
 }
