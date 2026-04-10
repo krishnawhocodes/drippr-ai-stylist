@@ -4,7 +4,7 @@ import type {
   OccasionContext,
   PriceRange,
   RecommendedProduct,
-} from "./schemas.js";
+} from "./schemas";
 
 const VIBE_KEYWORDS: Record<string, string[]> = {
   Streetwear: [

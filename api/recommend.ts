@@ -1,6 +1,6 @@
-import { adminDb } from "./_lib/firebaseAdmin.ts";
-import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq.ts";
-import { scoreProducts } from "./_lib/recommendation.ts";
+import { adminDb } from "./_lib/firebaseAdmin";
+import { analyzeStylePhoto, parseOccasionContext } from "./_lib/groq";
+import { scoreProducts } from "./_lib/recommendation";
 import {
   merchantProductSchema,
   recommendRequestSchema,
