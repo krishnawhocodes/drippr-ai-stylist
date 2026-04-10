@@ -5,7 +5,7 @@ import {
   type Gender,
   type ImageSignals,
   type OccasionContext,
-} from "./schemas";
+} from "./schemas.js";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";

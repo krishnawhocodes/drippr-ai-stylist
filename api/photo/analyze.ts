@@ -1,5 +1,5 @@
-import { analyzeStylePhoto } from "../_lib/groq";
-import { photoAnalyzeRequestSchema } from "../_lib/schemas";
+import { analyzeStylePhoto } from "../_lib/groq.js";
+import { photoAnalyzeRequestSchema } from "../_lib/schemas.js";
 
 function setCors(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
