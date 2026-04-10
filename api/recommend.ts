@@ -113,7 +113,16 @@ export default async function handler(req: any, res: any) {
       products: rankedProducts,
     });
 
-    return res.status(200).json(response);
+    return res.status(200).json({
+      ...response,
+      debugApplied: {
+        engineVersion: "category-first-v2",
+        category: body.category,
+        vibe: body.vibe,
+        priceRange: body.priceRange,
+        curatedPoolCount: curatedPool.length,
+      },
+    });
   } catch (error) {
     return res.status(500).json({
       error:

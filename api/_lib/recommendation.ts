@@ -38,32 +38,32 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
     "dress",
     "dresses",
     "blouse",
-    "shirts",
     "shirt",
+    "shirts",
     "kurta",
   ],
   "Cargo & Pants": [
     "cargo",
-    "pants",
     "pant",
-    "trousers",
+    "pants",
     "trouser",
-    "joggers",
+    "trousers",
     "jogger",
+    "joggers",
     "jeans",
   ],
   Tees: ["tee", "tees", "t-shirt", "tshirt", "t shirts", "polo"],
-  "Shorts & Skirts": ["shorts", "short", "skirt", "skirts"],
+  "Shorts & Skirts": ["short", "shorts", "skirt", "skirts"],
   "Sweatshirts & Hoodies": [
-    "sweatshirts",
     "sweatshirt",
-    "hoodies",
+    "sweatshirts",
     "hoodie",
+    "hoodies",
     "pullover",
   ],
   Jackets: [
-    "jackets",
     "jacket",
+    "jackets",
     "coat",
     "blazer",
     "overshirt",
@@ -90,14 +90,27 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
 
 const CATEGORY_TITLE_FALLBACK: Record<string, string[]> = {
   "Tops & Dresses": ["top", "dress", "blouse", "shirt", "kurta", "tank"],
-  "Cargo & Pants": ["cargo", "pants", "pant", "trouser", "jogger", "jeans"],
+  "Cargo & Pants": ["cargo", "pant", "pants", "trouser", "jogger", "jeans"],
   Tees: ["tee", "t-shirt", "tshirt", "polo"],
-  "Shorts & Skirts": ["shorts", "short", "skirt"],
+  "Shorts & Skirts": ["short", "shorts", "skirt"],
   "Sweatshirts & Hoodies": ["sweatshirt", "hoodie", "pullover"],
   Jackets: ["jacket", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
   "Cord Set": ["co-ord", "coord", "set", "kurta set"],
   Athleisure: ["athleisure", "sport", "sports", "gym", "running", "track"],
 };
+
+const JUNK_TITLE_PATTERNS = [
+  "test",
+  "workflow",
+  "debug",
+  "sdfe",
+  "sdf",
+  "demo",
+  "sample",
+  "dummy",
+  "prod",
+  "multi image prod",
+];
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "")
@@ -182,6 +195,19 @@ function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
   return false;
 }
 
+function isJunkProduct(product: MerchantProduct) {
+  const title = normalizeText(product.title);
+  const sku = normalizeText(product.sku);
+  const text = joinProductText(product);
+
+  return JUNK_TITLE_PATTERNS.some(
+    (pattern) =>
+      title.includes(pattern) ||
+      sku.includes(pattern) ||
+      text.includes(pattern),
+  );
+}
+
 function categoryMatches(product: MerchantProduct, selectedCategory: string) {
   const normalizedProductType = normalizeText(product.productType);
   const normalizedText = joinProductText(product);
@@ -190,7 +216,11 @@ function categoryMatches(product: MerchantProduct, selectedCategory: string) {
   const fallbackWords = CATEGORY_TITLE_FALLBACK[selectedCategory] ?? [];
 
   const productTypeHits = countMatches(normalizedProductType, preferredTypes);
-  const titleFallbackHits = countMatches(normalizedText, fallbackWords);
+
+  const titleFallbackHits =
+    normalizedProductType.length === 0
+      ? countMatches(normalizedText, fallbackWords)
+      : 0;
 
   return {
     matched: productTypeHits > 0 || titleFallbackHits > 0,
@@ -263,6 +293,7 @@ export function filterCuratedPool(args: {
 
   return products.filter((product) => {
     if (!inventoryAllowed(product)) return false;
+    if (isJunkProduct(product)) return false;
     if (
       typeof product.price !== "number" ||
       !priceMatches(priceRange, product.price)
