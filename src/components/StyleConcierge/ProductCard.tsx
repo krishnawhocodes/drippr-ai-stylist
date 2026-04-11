@@ -7,25 +7,31 @@ interface ProductCardProps {
   onAddToBag: (id: string) => void;
 }
 
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80";
+
 const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
+  const imageSrc = product.imageUrl || FALLBACK_IMAGE;
+
   return (
     <div
       className="glass-card rounded-2xl overflow-hidden group animate-stagger-in"
       style={{ animationDelay: `${index * 80}ms`, animationFillMode: "both" }}
     >
       <div className="aspect-[4/5] overflow-hidden bg-secondary relative">
-        {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.title}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-            No image
-          </div>
-        )}
+        <img
+          src={imageSrc}
+          alt={product.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (target.src !== FALLBACK_IMAGE) {
+              target.src = FALLBACK_IMAGE;
+            }
+          }}
+        />
       </div>
 
       <div className="p-4 space-y-3">

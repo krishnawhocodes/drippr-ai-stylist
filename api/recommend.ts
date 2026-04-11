@@ -247,7 +247,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "normalized-inventory-v7",
+        engineVersion: "store-image-parity-v9",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
