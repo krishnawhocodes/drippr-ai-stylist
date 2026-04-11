@@ -10,10 +10,10 @@ interface ProductCardProps {
 const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
   return (
     <div
-      className="glass-card rounded-2xl overflow-hidden group animate-stagger-in"
+      className="glass-card rounded-2xl overflow-hidden group animate-stagger-in h-full flex flex-col"
       style={{ animationDelay: `${index * 80}ms`, animationFillMode: "both" }}
     >
-      <div className="aspect-[4/5] overflow-hidden bg-secondary relative">
+      <div className="aspect-[4/5] overflow-hidden bg-secondary relative shrink-0">
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
@@ -29,38 +29,38 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
         )}
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 flex flex-1 flex-col">
         <div>
-          <h4 className="font-medium text-sm text-foreground leading-tight">
+          <h4 className="font-medium text-sm text-foreground leading-tight min-h-[4.5rem]">
             {product.title}
           </h4>
-          <p className="text-primary font-semibold text-base mt-1">
+          <p className="text-primary font-semibold text-base mt-2">
             {product.currency} {product.price}
           </p>
         </div>
 
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed mt-3 min-h-[3.5rem]">
           {product.reason}
         </p>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="mt-auto pt-4 flex flex-col gap-2">
           {product.storeUrl && (
             <a
               href={product.storeUrl}
               target="_blank"
               rel="noreferrer"
-              className="chip-base text-xs px-3 py-2 flex items-center gap-1.5 opacity-90 hover:opacity-100"
+              className="chip-base w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2 opacity-90 hover:opacity-100 text-center"
             >
-              <ExternalLink size={12} />
+              <ExternalLink size={14} />
               View in store
             </a>
           )}
 
           <button
             onClick={() => onAddToBag(product.id)}
-            className="chip-base chip-selected text-xs px-3 py-2 flex items-center gap-1.5"
+            className="chip-base chip-selected w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2"
           >
-            <ShoppingBag size={12} />
+            <ShoppingBag size={14} />
             Bag
           </button>
         </div>

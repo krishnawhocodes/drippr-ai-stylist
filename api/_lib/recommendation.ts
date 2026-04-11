@@ -275,7 +275,9 @@ function isTempStagedUrl(url: string | null | undefined) {
 }
 
 function getPrimaryImage(product: MerchantProduct) {
-  if (product.image && !isTempStagedUrl(product.image)) return product.image;
+  if (product.image && !isTempStagedUrl(product.image)) {
+    return product.image;
+  }
 
   const permanentFromImages = (product.images ?? []).find(
     (url) => !!url && !isTempStagedUrl(url),
@@ -312,30 +314,6 @@ function inventoryAllowed(product: MerchantProduct) {
   return ["active", "approved", "pending", "update_in_review"].includes(status);
 }
 
-function includesMenWomenConflict(
-  product: MerchantProduct,
-  gender: "Women" | "Men",
-) {
-  const compactText = normalizeText(
-    [
-      product.title,
-      product.productType ?? "",
-      (product.tags ?? []).join(" "),
-    ].join(" "),
-  );
-
-  const hasWomen =
-    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(
-      compactText,
-    );
-  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(compactText);
-
-  if (gender === "Women" && hasMen) return true;
-  if (gender === "Men" && hasWomen) return true;
-
-  return false;
-}
-
 function isJunkProduct(product: MerchantProduct) {
   const title = normalizeText(product.title);
   const sku = normalizeText(product.sku);
@@ -354,6 +332,36 @@ function isJunkProduct(product: MerchantProduct) {
       sku.includes(pattern) ||
       full.includes(pattern),
   );
+}
+
+function detectGenderMarkers(product: MerchantProduct) {
+  const compactText = normalizeText(
+    [
+      product.title,
+      product.productType ?? "",
+      (product.tags ?? []).join(" "),
+      product.vendor ?? "",
+    ].join(" "),
+  );
+
+  const hasWomen =
+    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(
+      compactText,
+    );
+
+  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(compactText);
+
+  return { hasWomen, hasMen };
+}
+
+function isGenderAllowed(product: MerchantProduct, gender: "Women" | "Men") {
+  const { hasWomen, hasMen } = detectGenderMarkers(product);
+
+  if (gender === "Men") {
+    return hasMen && !hasWomen;
+  }
+
+  return !hasMen;
 }
 
 function categorySignals(product: MerchantProduct, selectedCategory: string) {
@@ -432,10 +440,11 @@ export function buildCandidatePool(args: {
     if (
       typeof product.price !== "number" ||
       !priceMatches(args.priceRange, product.price)
-    )
+    ) {
       return false;
-    // Do not block products just because the Firestore mirror is missing image fields.
-    // The storefront and Firestore mirror can drift, so keep the product in the pool.    if (includesMenWomenConflict(product, args.gender)) return false;
+    }
+    if (!isGenderAllowed(product, args.gender)) return false;
+
     return true;
   });
 
@@ -535,8 +544,8 @@ export function scoreProducts(args: {
       }
 
       if (imageUrl) {
-  score += 5;
-}
+        score += 5;
+      }
 
       return {
         id: product.id,
