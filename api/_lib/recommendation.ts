@@ -8,7 +8,6 @@ import type {
 
 const VIBE_KEYWORDS: Record<string, string[]> = {
   Streetwear: [
-    "street",
     "streetwear",
     "oversized",
     "graphic",
@@ -31,10 +30,10 @@ const VIBE_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
-const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
+const CATEGORY_PRODUCT_TYPE_ALIASES: Record<string, string[]> = {
   "Tops & Dresses": [
-    "tops",
     "top",
+    "tops",
     "dress",
     "dresses",
     "blouse",
@@ -54,7 +53,7 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
     "jeans",
     "denim",
   ],
-  Tees: ["tee", "tees", "t-shirt", "tshirt", "polo"],
+  Tees: ["tee", "tees", "t shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt", "skirts"],
   "Sweatshirts & Hoodies": [
     "sweatshirt",
@@ -72,15 +71,7 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
     "windbreaker",
     "bomber",
   ],
-  "Cord Set": [
-    "cord set",
-    "co-ord",
-    "coord",
-    "co ord",
-    "set",
-    "sets",
-    "kurta set",
-  ],
+  "Cord Set": ["cord set", "co ord", "coord", "set", "sets", "kurta set"],
   Athleisure: [
     "athleisure",
     "sportswear",
@@ -90,7 +81,7 @@ const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
   ],
 };
 
-const CATEGORY_TITLE_TAG_FALLBACK: Record<string, string[]> = {
+const CATEGORY_TITLE_TAG_ALIASES: Record<string, string[]> = {
   "Tops & Dresses": [
     "top",
     "dress",
@@ -102,18 +93,18 @@ const CATEGORY_TITLE_TAG_FALLBACK: Record<string, string[]> = {
   ],
   "Cargo & Pants": [
     "cargo",
-    "pant",
     "pants",
+    "pant",
     "trouser",
     "jogger",
     "jeans",
     "denim",
   ],
-  Tees: ["tee", "t-shirt", "tshirt", "polo"],
+  Tees: ["tee", "t shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt"],
   "Sweatshirts & Hoodies": ["sweatshirt", "hoodie", "pullover"],
   Jackets: ["jacket", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
-  "Cord Set": ["co-ord", "coord", "cord set", "set", "kurta set"],
+  "Cord Set": ["co ord", "coord", "cord set", "set", "kurta set"],
   Athleisure: [
     "athleisure",
     "sport",
@@ -125,7 +116,7 @@ const CATEGORY_TITLE_TAG_FALLBACK: Record<string, string[]> = {
   ],
 };
 
-const CATEGORY_CONFLICT_WORDS: Record<string, string[]> = {
+const CATEGORY_CONFLICT_ALIASES: Record<string, string[]> = {
   "Tops & Dresses": [
     "pant",
     "pants",
@@ -141,7 +132,7 @@ const CATEGORY_CONFLICT_WORDS: Record<string, string[]> = {
     "tops",
     "tank",
     "tee",
-    "t-shirt",
+    "t shirt",
     "tshirt",
     "shirt",
     "blouse",
@@ -159,6 +150,7 @@ const CATEGORY_CONFLICT_WORDS: Record<string, string[]> = {
     "dress",
     "jacket",
     "hoodie",
+    "sweatshirt",
   ],
   "Shorts & Skirts": [
     "pant",
@@ -173,27 +165,30 @@ const CATEGORY_CONFLICT_WORDS: Record<string, string[]> = {
   "Sweatshirts & Hoodies": [
     "tank",
     "tee",
-    "t-shirt",
+    "t shirt",
     "tshirt",
     "dress",
     "pants",
     "jeans",
     "skirt",
+    "jacket",
   ],
   Jackets: [
     "tank",
     "tee",
-    "t-shirt",
+    "t shirt",
     "tshirt",
     "dress",
     "pants",
     "jeans",
     "skirt",
+    "hoodie",
+    "sweatshirt",
   ],
   "Cord Set": [
     "tank",
     "tee",
-    "t-shirt",
+    "t shirt",
     "tshirt",
     "pants",
     "jeans",
@@ -238,33 +233,29 @@ function normalizeText(value: string | null | undefined) {
     .trim();
 }
 
-function joinFullText(product: MerchantProduct) {
-  const tags = (product.tags ?? []).join(" ");
-  return normalizeText(
-    [
-      product.title,
-      product.description ?? "",
-      product.productType ?? "",
-      product.vendor ?? "",
-      tags,
-    ].join(" "),
-  );
+function tokenize(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+  return new Set(normalized.split(" ").filter(Boolean));
 }
 
-function joinCategoryText(product: MerchantProduct) {
-  const tags = (product.tags ?? []).join(" ");
-  return normalizeText(
-    [product.title, product.productType ?? "", tags].join(" "),
-  );
+function hasExactAlias(text: string, tokens: Set<string>, alias: string) {
+  const normalizedAlias = normalizeText(alias);
+  if (!normalizedAlias) return false;
+
+  if (normalizedAlias.includes(" ")) {
+    return ` ${text} `.includes(` ${normalizedAlias} `);
+  }
+
+  return tokens.has(normalizedAlias);
 }
 
-function hasKeyword(text: string, keyword: string) {
-  return text.includes(normalizeText(keyword));
-}
-
-function countMatches(text: string, keywords: string[]) {
-  return keywords.reduce(
-    (count, keyword) => count + (hasKeyword(text, keyword) ? 1 : 0),
+function countExactAliasMatches(
+  text: string,
+  tokens: Set<string>,
+  aliases: string[],
+) {
+  return aliases.reduce(
+    (count, alias) => count + (hasExactAlias(text, tokens, alias) ? 1 : 0),
     0,
   );
 }
@@ -309,10 +300,24 @@ function inventoryAllowed(product: MerchantProduct) {
   return typeof product.price === "number" && product.price > 0;
 }
 
-function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
+function includesMenWomenConflict(
+  product: MerchantProduct,
+  gender: "Women" | "Men",
+) {
+  const fullText = normalizeText(
+    [
+      product.title,
+      product.description ?? "",
+      product.productType ?? "",
+      (product.tags ?? []).join(" "),
+    ].join(" "),
+  );
+
   const hasWomen =
-    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
-  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(text);
+    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(
+      fullText,
+    );
+  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(fullText);
 
   if (gender === "Women" && hasMen) return true;
   if (gender === "Men" && hasWomen) return true;
@@ -323,27 +328,65 @@ function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
 function isJunkProduct(product: MerchantProduct) {
   const title = normalizeText(product.title);
   const sku = normalizeText(product.sku);
-  const text = joinFullText(product);
+  const full = normalizeText(
+    [
+      product.title,
+      product.description ?? "",
+      product.productType ?? "",
+      (product.tags ?? []).join(" "),
+    ].join(" "),
+  );
 
   return JUNK_PATTERNS.some(
     (pattern) =>
       title.includes(pattern) ||
       sku.includes(pattern) ||
-      text.includes(pattern),
+      full.includes(pattern),
   );
 }
 
 function categorySignals(product: MerchantProduct, selectedCategory: string) {
   const productTypeText = normalizeText(product.productType);
-  const categoryText = joinCategoryText(product);
+  const productTypeTokens = tokenize(product.productType);
 
-  const preferredTypes = CATEGORY_PRODUCT_TYPES[selectedCategory] ?? [];
-  const fallbackWords = CATEGORY_TITLE_TAG_FALLBACK[selectedCategory] ?? [];
-  const conflictWords = CATEGORY_CONFLICT_WORDS[selectedCategory] ?? [];
+  const titleTagText = normalizeText(
+    [product.title, (product.tags ?? []).join(" ")].join(" "),
+  );
+  const titleTagTokens = tokenize(
+    [product.title, (product.tags ?? []).join(" ")].join(" "),
+  );
 
-  const productTypeHits = countMatches(productTypeText, preferredTypes);
-  const titleTagHits = countMatches(categoryText, fallbackWords);
-  const conflictHits = countMatches(categoryText, conflictWords);
+  const allText = normalizeText(
+    [product.productType, product.title, (product.tags ?? []).join(" ")].join(
+      " ",
+    ),
+  );
+  const allTokens = tokenize(
+    [product.productType, product.title, (product.tags ?? []).join(" ")].join(
+      " ",
+    ),
+  );
+
+  const productTypeAliases =
+    CATEGORY_PRODUCT_TYPE_ALIASES[selectedCategory] ?? [];
+  const titleTagAliases = CATEGORY_TITLE_TAG_ALIASES[selectedCategory] ?? [];
+  const conflictAliases = CATEGORY_CONFLICT_ALIASES[selectedCategory] ?? [];
+
+  const productTypeHits = countExactAliasMatches(
+    productTypeText,
+    productTypeTokens,
+    productTypeAliases,
+  );
+  const titleTagHits = countExactAliasMatches(
+    titleTagText,
+    titleTagTokens,
+    titleTagAliases,
+  );
+  const conflictHits = countExactAliasMatches(
+    allText,
+    allTokens,
+    conflictAliases,
+  );
 
   const strictMatch = productTypeHits > 0 && conflictHits === 0;
   const titleTagMatch =
@@ -381,9 +424,8 @@ export function buildCandidatePool(args: {
     )
       return false;
     if (!getPrimaryImage(product)) return false;
-
-    const text = joinFullText(product);
-    return !includesMenWomenConflict(text, args.gender);
+    if (includesMenWomenConflict(product, args.gender)) return false;
+    return true;
   });
 
   const strict = baseEligible.filter(
@@ -428,33 +470,6 @@ export function buildCandidatePool(args: {
   };
 }
 
-export function extractKeywordUniverse(products: MerchantProduct[]) {
-  const keywordCounts = new Map<string, number>();
-  const productTypes = new Set<string>();
-
-  for (const product of products) {
-    const text = joinFullText(product);
-    const words = text.split(" ").filter((word) => word.length >= 4);
-
-    for (const word of words) {
-      keywordCounts.set(word, (keywordCounts.get(word) ?? 0) + 1);
-    }
-
-    if (product.productType) {
-      productTypes.add(normalizeText(product.productType));
-    }
-  }
-
-  const availableKeywords = [...keywordCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 40)
-    .map(([word]) => word);
-
-  const availableProductTypes = [...productTypes].slice(0, 20);
-
-  return { availableKeywords, availableProductTypes };
-}
-
 export function scoreProducts(args: {
   products: MerchantProduct[];
   gender: "Women" | "Men";
@@ -465,24 +480,44 @@ export function scoreProducts(args: {
   imageSignals: ImageSignals;
   maxResults?: number;
 }): RecommendedProduct[] {
-  const vibeWords = VIBE_KEYWORDS[args.vibe] ?? [normalizeText(args.vibe)];
-  const maxResults = args.maxResults ?? 50;
+  const vibeAliases = VIBE_KEYWORDS[args.vibe] ?? [normalizeText(args.vibe)];
+  const maxResults = args.maxResults ?? 100;
 
   return args.products
     .map((product) => {
-      const fullText = joinFullText(product);
+      const fullText = normalizeText(
+        [
+          product.title,
+          product.description ?? "",
+          product.productType ?? "",
+          (product.tags ?? []).join(" "),
+        ].join(" "),
+      );
+      const fullTokens = tokenize(
+        [
+          product.title,
+          product.description ?? "",
+          product.productType ?? "",
+          (product.tags ?? []).join(" "),
+        ].join(" "),
+      );
+
       const imageUrl = getPrimaryImage(product);
       const cat = categorySignals(product, args.category);
+      const vibeHits = countExactAliasMatches(
+        fullText,
+        fullTokens,
+        vibeAliases,
+      );
 
       let score = 0;
       const reasons: string[] = [];
 
-      score += 25 + Math.max(0, cat.totalScore) * 3;
+      score += 30 + Math.max(0, cat.totalScore) * 3;
       if (cat.totalScore > 0) {
         reasons.push("Strong category fit.");
       }
 
-      const vibeHits = countMatches(fullText, vibeWords);
       score += vibeHits * 8;
       if (vibeHits > 0) {
         reasons.push("Matches your selected vibe.");

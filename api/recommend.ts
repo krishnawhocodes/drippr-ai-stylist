@@ -27,10 +27,7 @@ function getBody(req: any) {
 async function fetchProducts() {
   const adminDb = getAdminDb();
 
-  const snapshot = await adminDb
-    .collection("merchantProducts")
-    .where("status", "in", ["active", "approved"])
-    .get();
+  const snapshot = await adminDb.collection("merchantProducts").get();
 
   const products: MerchantProduct[] = [];
 
@@ -98,7 +95,7 @@ export default async function handler(req: any, res: any) {
         visibleGarments: [],
         confidence: 0,
       },
-      maxResults: 50,
+      maxResults: 100,
     });
 
     const response = recommendResponseSchema.parse({
@@ -120,7 +117,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "category-budget-vibe-only-v5",
+        engineVersion: "exact-category-v6",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
