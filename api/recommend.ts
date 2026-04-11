@@ -5,6 +5,7 @@ import {
   recommendRequestSchema,
   recommendResponseSchema,
   type MerchantProduct,
+  type RecommendedProduct,
 } from "./_lib/schemas.js";
 
 export const config = {
@@ -175,6 +176,106 @@ async function fetchProducts() {
   };
 }
 
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value || !value.trim()) throw new Error(`Missing ${name}`);
+  return value.trim();
+}
+
+async function shopifyGraphQL(
+  query: string,
+  variables: Record<string, unknown>,
+) {
+  const domain = requireEnv("SHOPIFY_STORE_DOMAIN");
+  const token = requireEnv("SHOPIFY_ADMIN_TOKEN");
+  const apiVersion = process.env.SHOPIFY_API_VERSION?.trim() || "2025-01";
+
+  const res = await fetch(
+    `https://${domain}/admin/api/${apiVersion}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+      body: JSON.stringify({ query, variables }),
+    },
+  );
+
+  const json = await res.json();
+
+  if (!res.ok || json.errors) {
+    throw new Error(JSON.stringify(json));
+  }
+
+  return json;
+}
+
+const PRODUCT_IMAGES_QUERY = `
+  query ProductImages($id: ID!) {
+    product(id: $id) {
+      id
+      images(first: 20) {
+        nodes {
+          url
+        }
+      }
+    }
+  }
+`;
+
+async function fetchShopifyImages(shopifyProductId: string): Promise<string[]> {
+  const result = await shopifyGraphQL(PRODUCT_IMAGES_QUERY, {
+    id: shopifyProductId,
+  });
+  const nodes = result?.data?.product?.images?.nodes || [];
+
+  return nodes
+    .map((node: any) => (typeof node?.url === "string" ? node.url.trim() : ""))
+    .filter(Boolean);
+}
+
+async function hydrateMissingImages(products: RecommendedProduct[]) {
+  const adminDb = getAdminDb();
+
+  const hydrated = await Promise.all(
+    products.map(async (product) => {
+      if (product.imageUrl || !product.shopifyProductId) {
+        return product;
+      }
+
+      try {
+        const urls = await fetchShopifyImages(product.shopifyProductId);
+
+        if (!urls.length) {
+          return product;
+        }
+
+        const imageUrl = urls[0];
+
+        await adminDb.collection("merchantProducts").doc(product.id).set(
+          {
+            image: imageUrl,
+            images: urls,
+            imageUrls: urls,
+            updatedAt: Date.now(),
+          },
+          { merge: true },
+        );
+
+        return {
+          ...product,
+          imageUrl,
+        };
+      } catch {
+        return product;
+      }
+    }),
+  );
+
+  return hydrated;
+}
+
 export default async function handler(req: any, res: any) {
   setCors(res);
 
@@ -228,6 +329,8 @@ export default async function handler(req: any, res: any) {
       maxResults: 100,
     });
 
+    const hydratedProducts = await hydrateMissingImages(rankedProducts);
+
     const response = recommendResponseSchema.parse({
       occasionContext: {
         eventType: "ignored",
@@ -241,13 +344,13 @@ export default async function handler(req: any, res: any) {
         preferredProductTypes: [],
         confidence: 0,
       },
-      products: rankedProducts,
+      products: hydratedProducts,
     });
 
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "store-image-parity-v9",
+        engineVersion: "shopify-hydrate-v10",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
