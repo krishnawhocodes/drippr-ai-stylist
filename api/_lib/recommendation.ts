@@ -535,8 +535,8 @@ export function scoreProducts(args: {
       }
 
       if (imageUrl) {
-        score += 5;
-      }
+  score += 5;
+}
 
       return {
         id: product.id,
@@ -551,6 +551,7 @@ export function scoreProducts(args: {
         score,
         reason: buildReason(reasons),
         shopifyProductId: product.shopifyProductId ?? null,
+        storeUrl: null,
       };
     })
     .sort((a, b) => b.score - a.score || a.price - b.price)

@@ -1,4 +1,4 @@
-import { ShoppingBag, Tag } from "lucide-react";
+import { ExternalLink, ShoppingBag } from "lucide-react";
 import type { RecommendedProduct } from "@/types/recommendation";
 
 interface ProductCardProps {
@@ -44,15 +44,24 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
         </p>
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <span className="chip-base text-xs px-3 py-2 flex items-center gap-1.5 opacity-80">
-            <Tag size={12} /> {product.sku || "No SKU"}
-          </span>
+          {product.storeUrl && (
+            <a
+              href={product.storeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="chip-base text-xs px-3 py-2 flex items-center gap-1.5 opacity-90 hover:opacity-100"
+            >
+              <ExternalLink size={12} />
+              View in store
+            </a>
+          )}
 
           <button
             onClick={() => onAddToBag(product.id)}
             className="chip-base chip-selected text-xs px-3 py-2 flex items-center gap-1.5"
           >
-            <ShoppingBag size={12} /> Bag
+            <ShoppingBag size={12} />
+            Bag
           </button>
         </div>
       </div>

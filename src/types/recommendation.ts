@@ -79,6 +79,7 @@ export interface RecommendedProduct {
   vendor: string;
   score: number;
   reason: string;
+  storeUrl: string | null;
   shopifyProductId: string | null;
 }
 

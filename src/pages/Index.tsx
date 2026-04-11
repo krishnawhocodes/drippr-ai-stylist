@@ -289,7 +289,7 @@ const Index = () => {
                 onPhotoSelected={
                   step.key === "photo" ? handlePhotoSelected : undefined
                 }
-                allowPhotoSkip={false}
+                allowPhotoSkip={step.key === "photo"}
               />
             );
           })}

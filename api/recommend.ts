@@ -25,160 +25,31 @@ function getBody(req: any) {
   return req.body ?? {};
 }
 
-function toStringOrNull(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed ? trimmed : null;
-  }
-  if (typeof value === "number") {
-    return String(value);
-  }
-  return null;
-}
-
-function toNumberOrNull(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-}
-
-function extractStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  const urls: string[] = [];
-
-  for (const item of value) {
-    if (typeof item === "string" && item.trim()) {
-      urls.push(item.trim());
-      continue;
-    }
-
-    if (item && typeof item === "object") {
-      const obj = item as Record<string, unknown>;
-      const candidates = [
-        obj.url,
-        obj.src,
-        obj.image,
-        obj.imageUrl,
-        obj.originalSrc,
-      ];
-
-      for (const candidate of candidates) {
-        if (typeof candidate === "string" && candidate.trim()) {
-          urls.push(candidate.trim());
-          break;
-        }
-      }
-    }
-  }
-
-  return [...new Set(urls)];
-}
-
-function extractTags(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => toStringOrNull(item))
-      .filter((item): item is string => Boolean(item));
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function normalizeMerchantProduct(
-  id: string,
-  raw: Record<string, unknown>,
-): MerchantProduct | null {
-  const image =
-    toStringOrNull(raw.image) ??
-    toStringOrNull(raw.featuredImage) ??
-    toStringOrNull(raw.imageSrc);
-
-  const images = [
-    ...extractStringArray(raw.images),
-    ...extractStringArray(raw.media),
-  ];
-
-  const imageUrls = [
-    ...extractStringArray(raw.imageUrls),
-    ...extractStringArray(raw.photos),
-  ];
-
-  const normalized = {
-    id,
-    title: toStringOrNull(raw.title) ?? "",
-    description: toStringOrNull(raw.description),
-    price:
-      toNumberOrNull(raw.price) ??
-      toNumberOrNull(raw.salePrice) ??
-      toNumberOrNull(raw.compareAtPrice),
-    currency: toStringOrNull(raw.currency) ?? "INR",
-    sku: toStringOrNull(raw.sku),
-    status: toStringOrNull(raw.status),
-    published: typeof raw.published === "boolean" ? raw.published : null,
-    vendor: toStringOrNull(raw.vendor),
-    productType:
-      toStringOrNull(raw.productType) ??
-      toStringOrNull(raw.type) ??
-      toStringOrNull(raw.category),
-    tags: extractTags(raw.tags),
-    imageUrls,
-    images,
-    image,
-    inventoryQty:
-      toNumberOrNull(raw.inventoryQty) ??
-      toNumberOrNull(raw.inventory) ??
-      toNumberOrNull(raw.quantity) ??
-      toNumberOrNull(raw.stock),
-    merchantId: toStringOrNull(raw.merchantId),
-    shopifyProductId: toStringOrNull(raw.shopifyProductId),
-    createdAt: toNumberOrNull(raw.createdAt),
-    updatedAt: toNumberOrNull(raw.updatedAt),
-  };
-
-  const parsed = merchantProductSchema.safeParse(normalized);
-  return parsed.success ? parsed.data : null;
-}
-
 async function fetchProducts() {
   const adminDb = getAdminDb();
   const snapshot = await adminDb.collection("merchantProducts").get();
 
   const products: MerchantProduct[] = [];
-  let totalDocs = 0;
-  let normalizedDocs = 0;
 
   snapshot.forEach((doc: any) => {
-    totalDocs += 1;
-    const raw = doc.data() as Record<string, unknown>;
-    const normalized = normalizeMerchantProduct(doc.id, raw);
+    const parsed = merchantProductSchema.safeParse({
+      id: doc.id,
+      ...doc.data(),
+    });
 
-    if (normalized) {
-      normalizedDocs += 1;
-      products.push(normalized);
+    if (parsed.success) {
+      products.push(parsed.data);
     }
   });
 
-  return {
-    products,
-    totalDocs,
-    normalizedDocs,
-  };
+  return products;
 }
 
 function requireEnv(name: string) {
   const value = process.env[name];
-  if (!value || !value.trim()) throw new Error(`Missing ${name}`);
+  if (!value || !value.trim()) {
+    throw new Error(`Missing ${name}`);
+  }
   return value.trim();
 }
 
@@ -211,69 +82,68 @@ async function shopifyGraphQL(
   return json;
 }
 
-const PRODUCT_IMAGES_QUERY = `
-  query ProductImages($id: ID!) {
+const PRODUCT_URL_QUERY = `
+  query ProductUrl($id: ID!) {
     product(id: $id) {
       id
-      images(first: 20) {
-        nodes {
-          url
-        }
-      }
+      handle
+      onlineStoreUrl
     }
   }
 `;
 
-async function fetchShopifyImages(shopifyProductId: string): Promise<string[]> {
-  const result = await shopifyGraphQL(PRODUCT_IMAGES_QUERY, {
-    id: shopifyProductId,
-  });
-  const nodes = result?.data?.product?.images?.nodes || [];
-
-  return nodes
-    .map((node: any) => (typeof node?.url === "string" ? node.url.trim() : ""))
-    .filter(Boolean);
+function buildStoreSearchUrl(title: string) {
+  return `https://drippr.in/search?q=${encodeURIComponent(title)}`;
 }
 
-async function hydrateMissingImages(products: RecommendedProduct[]) {
-  const adminDb = getAdminDb();
+async function fetchStoreUrl(
+  shopifyProductId: string,
+  title: string,
+): Promise<string | null> {
+  try {
+    const result = await shopifyGraphQL(PRODUCT_URL_QUERY, {
+      id: shopifyProductId,
+    });
+    const product = result?.data?.product;
 
-  const hydrated = await Promise.all(
+    if (
+      typeof product?.onlineStoreUrl === "string" &&
+      product.onlineStoreUrl.trim()
+    ) {
+      return product.onlineStoreUrl.trim();
+    }
+
+    if (typeof product?.handle === "string" && product.handle.trim()) {
+      return `https://drippr.in/products/${product.handle.trim()}`;
+    }
+
+    return buildStoreSearchUrl(title);
+  } catch {
+    return buildStoreSearchUrl(title);
+  }
+}
+
+async function hydrateStoreUrls(products: RecommendedProduct[]) {
+  return Promise.all(
     products.map(async (product) => {
-      if (product.imageUrl || !product.shopifyProductId) {
-        return product;
-      }
-
-      try {
-        const urls = await fetchShopifyImages(product.shopifyProductId);
-
-        if (!urls.length) {
-          return product;
-        }
-
-        const imageUrl = urls[0];
-
-        await adminDb.collection("merchantProducts").doc(product.id).set(
-          {
-            image: imageUrl,
-            images: urls,
-            imageUrls: urls,
-            updatedAt: Date.now(),
-          },
-          { merge: true },
-        );
-
+      if (!product.shopifyProductId) {
         return {
           ...product,
-          imageUrl,
+          storeUrl: buildStoreSearchUrl(product.title),
         };
-      } catch {
-        return product;
       }
+
+      const storeUrl = await fetchStoreUrl(
+        product.shopifyProductId,
+        product.title,
+      );
+
+      return {
+        ...product,
+        storeUrl,
+      };
     }),
   );
-
-  return hydrated;
 }
 
 export default async function handler(req: any, res: any) {
@@ -289,10 +159,10 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = recommendRequestSchema.parse(getBody(req));
-    const fetched = await fetchProducts();
+    const products = await fetchProducts();
 
     const pool = buildCandidatePool({
-      products: fetched.products,
+      products,
       gender: body.gender,
       category: body.category,
       priceRange: body.priceRange,
@@ -329,7 +199,7 @@ export default async function handler(req: any, res: any) {
       maxResults: 100,
     });
 
-    const hydratedProducts = await hydrateMissingImages(rankedProducts);
+    const finalProducts = await hydrateStoreUrls(rankedProducts);
 
     const response = recommendResponseSchema.parse({
       occasionContext: {
@@ -344,18 +214,16 @@ export default async function handler(req: any, res: any) {
         preferredProductTypes: [],
         confidence: 0,
       },
-      products: hydratedProducts,
+      products: finalProducts,
     });
 
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "shopify-hydrate-v10",
+        engineVersion: "store-link-v11",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
-        firestoreDocCount: fetched.totalDocs,
-        normalizedDocCount: fetched.normalizedDocs,
         poolStage: pool.stage,
         baseEligibleCount: pool.counts.baseEligible,
         strictProductTypeCount: pool.counts.strictProductType,

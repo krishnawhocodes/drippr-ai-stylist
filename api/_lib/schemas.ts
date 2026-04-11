@@ -85,6 +85,7 @@ export const recommendedProductSchema = z.object({
   score: z.number(),
   reason: z.string(),
   shopifyProductId: z.string().nullable(),
+  storeUrl: z.string().nullable(),
 });
 
 export const recommendResponseSchema = z.object({
