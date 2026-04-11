@@ -1,10 +1,5 @@
 import { getAdminDb } from "./_lib/firebaseAdmin.js";
-import { parseOccasionContext } from "./_lib/groq.js";
-import {
-  buildCandidatePool,
-  extractKeywordUniverse,
-  scoreProducts,
-} from "./_lib/recommendation.js";
+import { buildCandidatePool, scoreProducts } from "./_lib/recommendation.js";
 import {
   merchantProductSchema,
   recommendRequestSchema,
@@ -75,26 +70,24 @@ export default async function handler(req: any, res: any) {
       priceRange: body.priceRange,
     });
 
-    const { availableKeywords, availableProductTypes } = extractKeywordUniverse(
-      pool.products,
-    );
-
-    const occasionContext = await parseOccasionContext({
-      occasion: body.occasion,
-      gender: body.gender,
-      vibe: body.vibe,
-      category: body.category,
-      availableKeywords,
-      availableProductTypes,
-    });
-
     const rankedProducts = scoreProducts({
       products: pool.products,
       gender: body.gender,
       vibe: body.vibe,
       category: body.category,
       priceRange: body.priceRange,
-      occasionContext,
+      occasionContext: {
+        eventType: "ignored",
+        timeOfDay: "unknown",
+        season: "unknown",
+        formality: "unknown",
+        comfortPriority: "medium",
+        styleDirection: [],
+        preferredKeywords: [],
+        avoidKeywords: [],
+        preferredProductTypes: [],
+        confidence: 0,
+      },
       imageSignals: {
         dominantColors: [],
         paletteTemperature: "unknown",
@@ -105,25 +98,36 @@ export default async function handler(req: any, res: any) {
         visibleGarments: [],
         confidence: 0,
       },
-      maxResults: 12,
+      maxResults: 50,
     });
 
     const response = recommendResponseSchema.parse({
-      occasionContext,
+      occasionContext: {
+        eventType: "ignored",
+        timeOfDay: "unknown",
+        season: "unknown",
+        formality: "unknown",
+        comfortPriority: "medium",
+        styleDirection: [],
+        preferredKeywords: [],
+        avoidKeywords: [],
+        preferredProductTypes: [],
+        confidence: 0,
+      },
       products: rankedProducts,
     });
 
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "category-hardstop-v4",
+        engineVersion: "category-budget-vibe-only-v5",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,
         poolStage: pool.stage,
         baseEligibleCount: pool.counts.baseEligible,
         strictProductTypeCount: pool.counts.strictProductType,
-        softTitleTagMatchCount: pool.counts.softTitleTagMatch,
+        titleTagMatchCount: pool.counts.titleTagMatch,
         curatedPoolCount: pool.products.length,
       },
     });

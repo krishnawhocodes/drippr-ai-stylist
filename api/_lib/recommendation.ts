@@ -7,45 +7,200 @@ import type {
 } from "./schemas.js";
 
 const VIBE_KEYWORDS: Record<string, string[]> = {
-  Streetwear: ["street", "streetwear", "oversized", "graphic", "utility", "bomber", "cargo"],
+  Streetwear: [
+    "street",
+    "streetwear",
+    "oversized",
+    "graphic",
+    "utility",
+    "bomber",
+    "cargo",
+  ],
   Minimal: ["minimal", "clean", "plain", "solid", "tailored", "classic"],
   Daily: ["daily", "everyday", "casual", "basic", "comfortable", "easy"],
   Thrift: ["vintage", "retro", "washed", "distressed", "denim", "corduroy"],
   Fusion: ["fusion", "ethnic", "indo", "traditional", "kurta", "embroidered"],
-  Athleisure: ["athleisure", "sport", "sports", "gym", "track", "active", "running"],
+  Athleisure: [
+    "athleisure",
+    "sport",
+    "sports",
+    "gym",
+    "track",
+    "active",
+    "running",
+  ],
 };
 
 const CATEGORY_PRODUCT_TYPES: Record<string, string[]> = {
-  "Tops & Dresses": ["tops", "top", "dress", "dresses", "blouse", "shirt", "shirts", "kurta", "tank"],
-  "Cargo & Pants": ["cargo", "pant", "pants", "trouser", "trousers", "jogger", "joggers", "jeans", "denim"],
+  "Tops & Dresses": [
+    "tops",
+    "top",
+    "dress",
+    "dresses",
+    "blouse",
+    "shirt",
+    "shirts",
+    "kurta",
+    "tank",
+  ],
+  "Cargo & Pants": [
+    "cargo",
+    "pant",
+    "pants",
+    "trouser",
+    "trousers",
+    "jogger",
+    "joggers",
+    "jeans",
+    "denim",
+  ],
   Tees: ["tee", "tees", "t-shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt", "skirts"],
-  "Sweatshirts & Hoodies": ["sweatshirt", "sweatshirts", "hoodie", "hoodies", "pullover"],
-  Jackets: ["jacket", "jackets", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
-  "Cord Set": ["cord set", "co-ord", "coord", "co ord", "set", "sets", "kurta set"],
-  Athleisure: ["athleisure", "sportswear", "activewear", "gymwear", "trackwear"],
+  "Sweatshirts & Hoodies": [
+    "sweatshirt",
+    "sweatshirts",
+    "hoodie",
+    "hoodies",
+    "pullover",
+  ],
+  Jackets: [
+    "jacket",
+    "jackets",
+    "coat",
+    "blazer",
+    "overshirt",
+    "windbreaker",
+    "bomber",
+  ],
+  "Cord Set": [
+    "cord set",
+    "co-ord",
+    "coord",
+    "co ord",
+    "set",
+    "sets",
+    "kurta set",
+  ],
+  Athleisure: [
+    "athleisure",
+    "sportswear",
+    "activewear",
+    "gymwear",
+    "trackwear",
+  ],
 };
 
-const CATEGORY_TITLE_FALLBACK: Record<string, string[]> = {
-  "Tops & Dresses": ["top", "dress", "blouse", "shirt", "kurta", "tank", "crop top"],
-  "Cargo & Pants": ["cargo", "pant", "pants", "trouser", "jogger", "jeans", "denim"],
+const CATEGORY_TITLE_TAG_FALLBACK: Record<string, string[]> = {
+  "Tops & Dresses": [
+    "top",
+    "dress",
+    "blouse",
+    "shirt",
+    "kurta",
+    "tank",
+    "crop top",
+  ],
+  "Cargo & Pants": [
+    "cargo",
+    "pant",
+    "pants",
+    "trouser",
+    "jogger",
+    "jeans",
+    "denim",
+  ],
   Tees: ["tee", "t-shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt"],
   "Sweatshirts & Hoodies": ["sweatshirt", "hoodie", "pullover"],
   Jackets: ["jacket", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
   "Cord Set": ["co-ord", "coord", "cord set", "set", "kurta set"],
-  Athleisure: ["athleisure", "sport", "sports", "gym", "running", "track", "activewear"],
+  Athleisure: [
+    "athleisure",
+    "sport",
+    "sports",
+    "gym",
+    "running",
+    "track",
+    "activewear",
+  ],
 };
 
 const CATEGORY_CONFLICT_WORDS: Record<string, string[]> = {
-  "Tops & Dresses": ["pant", "pants", "trouser", "trousers", "jogger", "joggers", "jeans", "cargo"],
-  "Cargo & Pants": ["top", "tops", "tank", "tee", "t-shirt", "tshirt", "shirt", "blouse", "dress", "dresses", "kurta"],
-  Tees: ["pant", "pants", "jogger", "joggers", "jeans", "cargo", "dress", "jacket", "hoodie"],
-  "Shorts & Skirts": ["pant", "pants", "jogger", "joggers", "jeans", "hoodie", "jacket", "dress"],
-  "Sweatshirts & Hoodies": ["tank", "tee", "t-shirt", "tshirt", "dress", "pants", "jeans", "skirt"],
-  "Jackets": ["tank", "tee", "t-shirt", "tshirt", "dress", "pants", "jeans", "skirt", "hoodie", "sweatshirt"],
-  "Cord Set": ["tank", "tee", "t-shirt", "tshirt", "pants", "jeans", "hoodie", "jacket"],
-  "Athleisure": ["dress", "blazer", "kurta"],
+  "Tops & Dresses": [
+    "pant",
+    "pants",
+    "trouser",
+    "trousers",
+    "jogger",
+    "joggers",
+    "jeans",
+    "cargo",
+  ],
+  "Cargo & Pants": [
+    "top",
+    "tops",
+    "tank",
+    "tee",
+    "t-shirt",
+    "tshirt",
+    "shirt",
+    "blouse",
+    "dress",
+    "dresses",
+    "kurta",
+  ],
+  Tees: [
+    "pant",
+    "pants",
+    "jogger",
+    "joggers",
+    "jeans",
+    "cargo",
+    "dress",
+    "jacket",
+    "hoodie",
+  ],
+  "Shorts & Skirts": [
+    "pant",
+    "pants",
+    "jogger",
+    "joggers",
+    "jeans",
+    "hoodie",
+    "jacket",
+    "dress",
+  ],
+  "Sweatshirts & Hoodies": [
+    "tank",
+    "tee",
+    "t-shirt",
+    "tshirt",
+    "dress",
+    "pants",
+    "jeans",
+    "skirt",
+  ],
+  Jackets: [
+    "tank",
+    "tee",
+    "t-shirt",
+    "tshirt",
+    "dress",
+    "pants",
+    "jeans",
+    "skirt",
+  ],
+  "Cord Set": [
+    "tank",
+    "tee",
+    "t-shirt",
+    "tshirt",
+    "pants",
+    "jeans",
+    "hoodie",
+    "jacket",
+  ],
+  Athleisure: ["dress", "blazer", "kurta"],
 };
 
 const JUNK_PATTERNS = [
@@ -62,8 +217,8 @@ const JUNK_PATTERNS = [
 
 export type CandidatePoolStage =
   | "strict_product_type"
-  | "title_tag_soft_match"
-  | "fallback_base_pool";
+  | "title_tag_match"
+  | "empty";
 
 export type CandidatePoolResult = {
   products: MerchantProduct[];
@@ -71,7 +226,7 @@ export type CandidatePoolResult = {
   counts: {
     baseEligible: number;
     strictProductType: number;
-    softTitleTagMatch: number;
+    titleTagMatch: number;
   };
 };
 
@@ -99,11 +254,7 @@ function joinFullText(product: MerchantProduct) {
 function joinCategoryText(product: MerchantProduct) {
   const tags = (product.tags ?? []).join(" ");
   return normalizeText(
-    [
-      product.title,
-      product.productType ?? "",
-      tags,
-    ].join(" "),
+    [product.title, product.productType ?? "", tags].join(" "),
   );
 }
 
@@ -112,7 +263,10 @@ function hasKeyword(text: string, keyword: string) {
 }
 
 function countMatches(text: string, keywords: string[]) {
-  return keywords.reduce((count, keyword) => count + (hasKeyword(text, keyword) ? 1 : 0), 0);
+  return keywords.reduce(
+    (count, keyword) => count + (hasKeyword(text, keyword) ? 1 : 0),
+    0,
+  );
 }
 
 function priceMatches(priceRange: PriceRange, price: number) {
@@ -123,16 +277,23 @@ function priceMatches(priceRange: PriceRange, price: number) {
 
 function isTempStagedUrl(url: string | null | undefined) {
   if (!url) return false;
-  return url.includes("shopify-staged-uploads.storage.googleapis.com") || url.includes("/tmp/");
+  return (
+    url.includes("shopify-staged-uploads.storage.googleapis.com") ||
+    url.includes("/tmp/")
+  );
 }
 
 function getPrimaryImage(product: MerchantProduct) {
   if (product.image && !isTempStagedUrl(product.image)) return product.image;
 
-  const permanentFromImages = (product.images ?? []).find((url) => !!url && !isTempStagedUrl(url));
+  const permanentFromImages = (product.images ?? []).find(
+    (url) => !!url && !isTempStagedUrl(url),
+  );
   if (permanentFromImages) return permanentFromImages;
 
-  const permanentFromImageUrls = (product.imageUrls ?? []).find((url) => !!url && !isTempStagedUrl(url));
+  const permanentFromImageUrls = (product.imageUrls ?? []).find(
+    (url) => !!url && !isTempStagedUrl(url),
+  );
   if (permanentFromImageUrls) return permanentFromImageUrls;
 
   return null;
@@ -142,13 +303,15 @@ function inventoryAllowed(product: MerchantProduct) {
   const status = normalizeText(product.status);
 
   if (status && !["active", "approved"].includes(status)) return false;
-  if (typeof product.inventoryQty === "number" && product.inventoryQty <= 0) return false;
+  if (typeof product.inventoryQty === "number" && product.inventoryQty <= 0)
+    return false;
 
   return typeof product.price === "number" && product.price > 0;
 }
 
 function includesMenWomenConflict(text: string, gender: "Women" | "Men") {
-  const hasWomen = /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
+  const hasWomen =
+    /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(text);
   const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(text);
 
   if (gender === "Women" && hasMen) return true;
@@ -163,7 +326,10 @@ function isJunkProduct(product: MerchantProduct) {
   const text = joinFullText(product);
 
   return JUNK_PATTERNS.some(
-    (pattern) => title.includes(pattern) || sku.includes(pattern) || text.includes(pattern),
+    (pattern) =>
+      title.includes(pattern) ||
+      sku.includes(pattern) ||
+      text.includes(pattern),
   );
 }
 
@@ -172,7 +338,7 @@ function categorySignals(product: MerchantProduct, selectedCategory: string) {
   const categoryText = joinCategoryText(product);
 
   const preferredTypes = CATEGORY_PRODUCT_TYPES[selectedCategory] ?? [];
-  const fallbackWords = CATEGORY_TITLE_FALLBACK[selectedCategory] ?? [];
+  const fallbackWords = CATEGORY_TITLE_TAG_FALLBACK[selectedCategory] ?? [];
   const conflictWords = CATEGORY_CONFLICT_WORDS[selectedCategory] ?? [];
 
   const productTypeHits = countMatches(productTypeText, preferredTypes);
@@ -180,11 +346,12 @@ function categorySignals(product: MerchantProduct, selectedCategory: string) {
   const conflictHits = countMatches(categoryText, conflictWords);
 
   const strictMatch = productTypeHits > 0 && conflictHits === 0;
-  const softMatch = productTypeHits === 0 && titleTagHits > 0 && conflictHits === 0;
+  const titleTagMatch =
+    productTypeHits === 0 && titleTagHits > 0 && conflictHits === 0;
 
   return {
     strictMatch,
-    softMatch,
+    titleTagMatch,
     productTypeHits,
     titleTagHits,
     conflictHits,
@@ -194,34 +361,9 @@ function categorySignals(product: MerchantProduct, selectedCategory: string) {
 
 function buildReason(parts: string[]) {
   const filtered = [...new Set(parts.filter(Boolean))];
-  return filtered.length > 0 ? filtered.join(" ") : "Good match for your selected category and occasion.";
-}
-
-function occasionBoost(text: string, occasionContext: OccasionContext) {
-  let boost = 0;
-
-  boost += countMatches(text, occasionContext.preferredKeywords) * 5;
-  boost -= countMatches(text, occasionContext.avoidKeywords) * 7;
-  boost += countMatches(text, occasionContext.preferredProductTypes) * 5;
-
-  if (occasionContext.timeOfDay === "night") {
-    boost += countMatches(text, ["night", "evening", "party", "statement", "black", "navy"]) * 2;
-  }
-
-  if (occasionContext.season === "summer") {
-    boost += countMatches(text, ["summer", "lightweight", "breathable", "cotton", "linen"]) * 2;
-  }
-
-  if (occasionContext.formality === "semi_formal") {
-    boost += countMatches(text, ["elegant", "structured", "refined", "party"]) * 2;
-    boost -= countMatches(text, ["loungewear", "gym", "workout", "airport look"]) * 4;
-  }
-
-  if (occasionContext.formality === "festive") {
-    boost += countMatches(text, ["festive", "ethnic", "traditional", "embroidered"]) * 3;
-  }
-
-  return boost;
+  return filtered.length > 0
+    ? filtered.join(" ")
+    : "Good match for your selected filters.";
 }
 
 export function buildCandidatePool(args: {
@@ -233,15 +375,23 @@ export function buildCandidatePool(args: {
   const baseEligible = args.products.filter((product) => {
     if (!inventoryAllowed(product)) return false;
     if (isJunkProduct(product)) return false;
-    if (typeof product.price !== "number" || !priceMatches(args.priceRange, product.price)) return false;
+    if (
+      typeof product.price !== "number" ||
+      !priceMatches(args.priceRange, product.price)
+    )
+      return false;
     if (!getPrimaryImage(product)) return false;
 
     const text = joinFullText(product);
     return !includesMenWomenConflict(text, args.gender);
   });
 
-  const strict = baseEligible.filter((product) => categorySignals(product, args.category).strictMatch);
-  const soft = baseEligible.filter((product) => categorySignals(product, args.category).softMatch);
+  const strict = baseEligible.filter(
+    (product) => categorySignals(product, args.category).strictMatch,
+  );
+  const soft = baseEligible.filter(
+    (product) => categorySignals(product, args.category).titleTagMatch,
+  );
 
   if (strict.length > 0) {
     return {
@@ -250,7 +400,7 @@ export function buildCandidatePool(args: {
       counts: {
         baseEligible: baseEligible.length,
         strictProductType: strict.length,
-        softTitleTagMatch: soft.length,
+        titleTagMatch: soft.length,
       },
     };
   }
@@ -258,22 +408,22 @@ export function buildCandidatePool(args: {
   if (soft.length > 0) {
     return {
       products: soft,
-      stage: "title_tag_soft_match",
+      stage: "title_tag_match",
       counts: {
         baseEligible: baseEligible.length,
         strictProductType: strict.length,
-        softTitleTagMatch: soft.length,
+        titleTagMatch: soft.length,
       },
     };
   }
 
   return {
-    products: baseEligible,
-    stage: "fallback_base_pool",
+    products: [],
+    stage: "empty",
     counts: {
       baseEligible: baseEligible.length,
       strictProductType: strict.length,
-      softTitleTagMatch: soft.length,
+      titleTagMatch: soft.length,
     },
   };
 }
@@ -316,7 +466,7 @@ export function scoreProducts(args: {
   maxResults?: number;
 }): RecommendedProduct[] {
   const vibeWords = VIBE_KEYWORDS[args.vibe] ?? [normalizeText(args.vibe)];
-  const maxResults = args.maxResults ?? 12;
+  const maxResults = args.maxResults ?? 50;
 
   return args.products
     .map((product) => {
@@ -327,7 +477,7 @@ export function scoreProducts(args: {
       let score = 0;
       const reasons: string[] = [];
 
-      score += 15 + Math.max(0, cat.totalScore) * 3;
+      score += 25 + Math.max(0, cat.totalScore) * 3;
       if (cat.totalScore > 0) {
         reasons.push("Strong category fit.");
       }
@@ -336,12 +486,6 @@ export function scoreProducts(args: {
       score += vibeHits * 8;
       if (vibeHits > 0) {
         reasons.push("Matches your selected vibe.");
-      }
-
-      const rerank = occasionBoost(fullText, args.occasionContext);
-      score += rerank;
-      if (rerank > 0) {
-        reasons.push("Works well for your occasion.");
       }
 
       if (imageUrl) {
