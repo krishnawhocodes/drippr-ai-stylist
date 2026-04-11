@@ -291,23 +291,34 @@ function getPrimaryImage(product: MerchantProduct) {
 }
 
 function inventoryAllowed(product: MerchantProduct) {
+  if (typeof product.price !== "number" || product.price <= 0) {
+    return false;
+  }
+
   const status = normalizeText(product.status);
 
-  if (status && !["active", "approved"].includes(status)) return false;
-  if (typeof product.inventoryQty === "number" && product.inventoryQty <= 0)
+  if (status === "rejected" || status === "deleted") {
     return false;
+  }
 
-  return typeof product.price === "number" && product.price > 0;
+  if (product.published === true) {
+    return true;
+  }
+
+  if (!status) {
+    return true;
+  }
+
+  return ["active", "approved", "pending", "update_in_review"].includes(status);
 }
 
 function includesMenWomenConflict(
   product: MerchantProduct,
   gender: "Women" | "Men",
 ) {
-  const fullText = normalizeText(
+  const compactText = normalizeText(
     [
       product.title,
-      product.description ?? "",
       product.productType ?? "",
       (product.tags ?? []).join(" "),
     ].join(" "),
@@ -315,9 +326,9 @@ function includesMenWomenConflict(
 
   const hasWomen =
     /\bwomen\b|\bwomens\b|\bladies\b|\bfemale\b|\bgirl\b|\bgirls\b/.test(
-      fullText,
+      compactText,
     );
-  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(fullText);
+  const hasMen = /\bmen\b|\bmens\b|\bmale\b|\bboy\b|\bboys\b/.test(compactText);
 
   if (gender === "Women" && hasMen) return true;
   if (gender === "Men" && hasWomen) return true;
@@ -423,8 +434,8 @@ export function buildCandidatePool(args: {
       !priceMatches(args.priceRange, product.price)
     )
       return false;
-    if (!getPrimaryImage(product)) return false;
-    if (includesMenWomenConflict(product, args.gender)) return false;
+    // Do not block products just because the Firestore mirror is missing image fields.
+    // The storefront and Firestore mirror can drift, so keep the product in the pool.    if (includesMenWomenConflict(product, args.gender)) return false;
     return true;
   });
 

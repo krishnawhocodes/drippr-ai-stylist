@@ -55,6 +55,7 @@ export const merchantProductSchema = z.object({
   title: z.string().default(""),
   description: z.string().nullable().optional(),
   price: z.number().nullable().optional(),
+  published: z.boolean().nullable().optional(),
   currency: z.string().nullable().optional(),
   sku: z.string().nullable().optional(),
   status: z.string().nullable().optional(),

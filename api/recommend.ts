@@ -124,6 +124,7 @@ function normalizeMerchantProduct(
     currency: toStringOrNull(raw.currency) ?? "INR",
     sku: toStringOrNull(raw.sku),
     status: toStringOrNull(raw.status),
+    published: typeof raw.published === "boolean" ? raw.published : null,
     vendor: toStringOrNull(raw.vendor),
     productType:
       toStringOrNull(raw.productType) ??
@@ -136,7 +137,8 @@ function normalizeMerchantProduct(
     inventoryQty:
       toNumberOrNull(raw.inventoryQty) ??
       toNumberOrNull(raw.inventory) ??
-      toNumberOrNull(raw.quantity),
+      toNumberOrNull(raw.quantity) ??
+      toNumberOrNull(raw.stock),
     merchantId: toStringOrNull(raw.merchantId),
     shopifyProductId: toStringOrNull(raw.shopifyProductId),
     createdAt: toNumberOrNull(raw.createdAt),
