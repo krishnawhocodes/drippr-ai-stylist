@@ -561,6 +561,7 @@ export function scoreProducts(args: {
         reason: buildReason(reasons),
         shopifyProductId: product.shopifyProductId ?? null,
         storeUrl: null,
+        addToCartUrl: null,
       };
     })
     .sort((a, b) => b.score - a.score || a.price - b.price)

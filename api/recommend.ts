@@ -5,12 +5,15 @@ import {
   recommendRequestSchema,
   recommendResponseSchema,
   type MerchantProduct,
-  type RecommendedProduct,
 } from "./_lib/schemas.js";
 
 export const config = {
   maxDuration: 60,
 };
+
+const STORE_BASE_URL = (
+  process.env.STORE_BASE_URL || "https://drippr.in"
+).replace(/\/$/, "");
 
 function setCors(res: any) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -25,6 +28,136 @@ function getBody(req: any) {
   return req.body ?? {};
 }
 
+function toStringOrNull(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return null;
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function extractStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const urls: string[] = [];
+
+  for (const item of value) {
+    if (typeof item === "string" && item.trim()) {
+      urls.push(item.trim());
+      continue;
+    }
+
+    if (item && typeof item === "object") {
+      const obj = item as Record<string, unknown>;
+      const candidates = [
+        obj.url,
+        obj.src,
+        obj.image,
+        obj.imageUrl,
+        obj.originalSrc,
+      ];
+
+      for (const candidate of candidates) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          urls.push(candidate.trim());
+          break;
+        }
+      }
+    }
+  }
+
+  return [...new Set(urls)];
+}
+
+function extractTags(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toStringOrNull(item))
+      .filter((item): item is string => Boolean(item));
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeMerchantProduct(
+  id: string,
+  raw: Record<string, unknown>,
+): MerchantProduct | null {
+  const image =
+    toStringOrNull(raw.image) ??
+    toStringOrNull(raw.featuredImage) ??
+    toStringOrNull(raw.imageSrc);
+
+  const images = [
+    ...extractStringArray(raw.images),
+    ...extractStringArray(raw.media),
+  ];
+
+  const imageUrls = [
+    ...extractStringArray(raw.imageUrls),
+    ...extractStringArray(raw.photos),
+  ];
+
+  const normalized = {
+    id,
+    title: toStringOrNull(raw.title) ?? "",
+    description: toStringOrNull(raw.description),
+    price:
+      toNumberOrNull(raw.price) ??
+      toNumberOrNull(raw.salePrice) ??
+      toNumberOrNull(raw.compareAtPrice),
+    currency: toStringOrNull(raw.currency) ?? "INR",
+    sku: toStringOrNull(raw.sku),
+    status: toStringOrNull(raw.status),
+    published: typeof raw.published === "boolean" ? raw.published : null,
+    vendor: toStringOrNull(raw.vendor),
+    productType:
+      toStringOrNull(raw.productType) ??
+      toStringOrNull(raw.type) ??
+      toStringOrNull(raw.category),
+    tags: extractTags(raw.tags),
+    imageUrls,
+    images,
+    image,
+    inventoryQty:
+      toNumberOrNull(raw.inventoryQty) ??
+      toNumberOrNull(raw.inventory) ??
+      toNumberOrNull(raw.quantity) ??
+      toNumberOrNull(raw.stock),
+    merchantId: toStringOrNull(raw.merchantId),
+    shopifyProductId: toStringOrNull(raw.shopifyProductId),
+    shopifyVariantNumericIds: Array.isArray(raw.shopifyVariantNumericIds)
+      ? raw.shopifyVariantNumericIds
+      : Array.isArray(raw.shopifyVariantIds)
+        ? raw.shopifyVariantIds
+        : null,
+    createdAt: toNumberOrNull(raw.createdAt),
+    updatedAt: toNumberOrNull(raw.updatedAt),
+  };
+
+  const parsed = merchantProductSchema.safeParse(normalized);
+  return parsed.success ? parsed.data : null;
+}
+
 async function fetchProducts() {
   const adminDb = getAdminDb();
   const snapshot = await adminDb.collection("merchantProducts").get();
@@ -32,13 +165,11 @@ async function fetchProducts() {
   const products: MerchantProduct[] = [];
 
   snapshot.forEach((doc: any) => {
-    const parsed = merchantProductSchema.safeParse({
-      id: doc.id,
-      ...doc.data(),
-    });
+    const raw = doc.data() as Record<string, unknown>;
+    const normalized = normalizeMerchantProduct(doc.id, raw);
 
-    if (parsed.success) {
-      products.push(parsed.data);
+    if (normalized) {
+      products.push(normalized);
     }
   });
 
@@ -82,8 +213,8 @@ async function shopifyGraphQL(
   return json;
 }
 
-const PRODUCT_URL_QUERY = `
-  query ProductUrl($id: ID!) {
+const PRODUCT_LINK_QUERY = `
+  query ProductLink($id: ID!) {
     product(id: $id) {
       id
       handle
@@ -93,7 +224,31 @@ const PRODUCT_URL_QUERY = `
 `;
 
 function buildStoreSearchUrl(title: string) {
-  return `https://drippr.in/search?q=${encodeURIComponent(title)}`;
+  return `${STORE_BASE_URL}/search?q=${encodeURIComponent(title)}`;
+}
+
+function getPrimaryVariantNumericId(product: MerchantProduct): string | null {
+  const values = product.shopifyVariantNumericIds ?? [];
+
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const trimmed = value.trim();
+      const gidMatch = trimmed.match(/(\d+)$/);
+      return gidMatch ? gidMatch[1] : trimmed;
+    }
+  }
+
+  return null;
+}
+
+function buildAddToCartUrl(variantNumericId: string) {
+  return `${STORE_BASE_URL}/cart/add?id=${encodeURIComponent(
+    variantNumericId,
+  )}&quantity=1&return_to=/cart`;
 }
 
 async function fetchStoreUrl(
@@ -101,7 +256,7 @@ async function fetchStoreUrl(
   title: string,
 ): Promise<string | null> {
   try {
-    const result = await shopifyGraphQL(PRODUCT_URL_QUERY, {
+    const result = await shopifyGraphQL(PRODUCT_LINK_QUERY, {
       id: shopifyProductId,
     });
     const product = result?.data?.product;
@@ -114,7 +269,7 @@ async function fetchStoreUrl(
     }
 
     if (typeof product?.handle === "string" && product.handle.trim()) {
-      return `https://drippr.in/products/${product.handle.trim()}`;
+      return `${STORE_BASE_URL}/products/${product.handle.trim()}`;
     }
 
     return buildStoreSearchUrl(title);
@@ -123,24 +278,31 @@ async function fetchStoreUrl(
   }
 }
 
-async function hydrateStoreUrls(products: RecommendedProduct[]) {
+async function hydrateStoreLinks(
+  products: ReturnType<typeof scoreProducts> extends Promise<infer U>
+    ? U
+    : ReturnType<typeof scoreProducts>,
+  sourceProducts: MerchantProduct[],
+) {
+  const sourceById = new Map(sourceProducts.map((p) => [p.id, p] as const));
+
   return Promise.all(
     products.map(async (product) => {
-      if (!product.shopifyProductId) {
-        return {
-          ...product,
-          storeUrl: buildStoreSearchUrl(product.title),
-        };
-      }
+      const source = sourceById.get(product.id);
+      const variantNumericId = source
+        ? getPrimaryVariantNumericId(source)
+        : null;
 
-      const storeUrl = await fetchStoreUrl(
-        product.shopifyProductId,
-        product.title,
-      );
+      const storeUrl = product.shopifyProductId
+        ? await fetchStoreUrl(product.shopifyProductId, product.title)
+        : buildStoreSearchUrl(product.title);
 
       return {
         ...product,
         storeUrl,
+        addToCartUrl: variantNumericId
+          ? buildAddToCartUrl(variantNumericId)
+          : null,
       };
     }),
   );
@@ -199,7 +361,10 @@ export default async function handler(req: any, res: any) {
       maxResults: 100,
     });
 
-    const finalProducts = await hydrateStoreUrls(rankedProducts);
+    const finalProducts = await hydrateStoreLinks(
+      rankedProducts,
+      pool.products,
+    );
 
     const response = recommendResponseSchema.parse({
       occasionContext: {
@@ -220,7 +385,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "store-link-v11",
+        engineVersion: "store-cart-link-v12",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,

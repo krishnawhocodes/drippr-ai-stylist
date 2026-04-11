@@ -1,10 +1,11 @@
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import type { RecommendedProduct } from "@/types/recommendation";
+import { openAddToCart } from "@/lib/storeLinks";
 
 interface ProductCardProps {
   product: RecommendedProduct;
   index: number;
-  onAddToBag: (id: string) => void;
+  onAddToBag: (product: RecommendedProduct) => void;
 }
 
 const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
@@ -57,7 +58,14 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
           )}
 
           <button
-            onClick={() => onAddToBag(product.id)}
+            onClick={() => {
+              onAddToBag(product);
+              if (product.addToCartUrl) {
+                openAddToCart(product.addToCartUrl);
+              } else if (product.storeUrl) {
+                openAddToCart(product.storeUrl);
+              }
+            }}
             className="chip-base chip-selected w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2"
           >
             <ShoppingBag size={14} />

@@ -10,7 +10,7 @@ interface ResultsSectionProps {
   products: RecommendedProduct[];
   occasionContext: OccasionContext | null;
   error: string | null;
-  onAddToBag: (id: string) => void;
+  onAddToBag: (product: RecommendedProduct) => void;
   onRefine: () => void;
   onRestart: () => void;
   onChangeVibe: () => void;
@@ -20,12 +20,15 @@ interface ResultsSectionProps {
 function chipsFromContext(occasionContext: OccasionContext | null) {
   const chips: string[] = [];
 
-  if (occasionContext?.eventType)
+  if (occasionContext?.eventType) {
     chips.push(occasionContext.eventType.replace(/_/g, " "));
-  if (occasionContext?.season && occasionContext.season !== "unknown")
+  }
+  if (occasionContext?.season && occasionContext.season !== "unknown") {
     chips.push(occasionContext.season);
-  if (occasionContext?.timeOfDay && occasionContext.timeOfDay !== "unknown")
+  }
+  if (occasionContext?.timeOfDay && occasionContext.timeOfDay !== "unknown") {
     chips.push(occasionContext.timeOfDay);
+  }
   if (occasionContext?.formality && occasionContext.formality !== "unknown") {
     chips.push(occasionContext.formality.replace(/_/g, " "));
   }

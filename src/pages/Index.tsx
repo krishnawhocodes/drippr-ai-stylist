@@ -6,6 +6,7 @@ import CuratingLoader from "@/components/StyleConcierge/CuratingLoader";
 import ResultsSection from "@/components/StyleConcierge/ResultsSection";
 import { prepareValidatedPhoto } from "@/lib/photoValidation";
 import { recommendStyle } from "@/lib/api";
+import { openStoreCart } from "@/lib/storeLinks";
 import type {
   Gender,
   OccasionContext,
@@ -82,7 +83,7 @@ const STEPS = [
     stepNumber: 5,
     question: "Tell us more about the occasion",
     helperText:
-      "We’ll use this only to shortlist and rerank products inside your selected vibe and category.",
+      "We’ll use this only to collect context while your results are filtered mainly by store inventory.",
     type: "prompt" as const,
   },
   {
@@ -230,7 +231,7 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleAddToBag = useCallback((_id: string) => {
+  const handleAddToBag = useCallback((product: RecommendedProduct) => {
     setBagCount((prev) => prev + 1);
   }, []);
 
@@ -253,6 +254,7 @@ const Index = () => {
       <TopBar
         bagCount={bagCount}
         onRestart={handleRestart}
+        onOpenBag={openStoreCart}
         currentStep={showResults ? 6 : activeStep}
         totalSteps={6}
         showProgress={activeStep >= 1 || showResults}

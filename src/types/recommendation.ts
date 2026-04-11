@@ -79,8 +79,9 @@ export interface RecommendedProduct {
   vendor: string;
   score: number;
   reason: string;
-  storeUrl: string | null;
   shopifyProductId: string | null;
+  storeUrl: string | null;
+  addToCartUrl: string | null;
 }
 
 export interface RecommendResponse {

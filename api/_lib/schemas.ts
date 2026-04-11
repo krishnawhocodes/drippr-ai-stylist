@@ -55,10 +55,10 @@ export const merchantProductSchema = z.object({
   title: z.string().default(""),
   description: z.string().nullable().optional(),
   price: z.number().nullable().optional(),
-  published: z.boolean().nullable().optional(),
   currency: z.string().nullable().optional(),
   sku: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
+  published: z.boolean().nullable().optional(),
   vendor: z.string().nullable().optional(),
   productType: z.string().nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
@@ -68,6 +68,10 @@ export const merchantProductSchema = z.object({
   inventoryQty: z.number().nullable().optional(),
   merchantId: z.string().nullable().optional(),
   shopifyProductId: z.string().nullable().optional(),
+  shopifyVariantNumericIds: z
+    .array(z.union([z.string(), z.number()]))
+    .nullable()
+    .optional(),
   createdAt: z.number().nullable().optional(),
   updatedAt: z.number().nullable().optional(),
 });
@@ -86,6 +90,7 @@ export const recommendedProductSchema = z.object({
   reason: z.string(),
   shopifyProductId: z.string().nullable(),
   storeUrl: z.string().nullable(),
+  addToCartUrl: z.string().nullable(),
 });
 
 export const recommendResponseSchema = z.object({
