@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 export const genderSchema = z.enum(["Women", "Men"]);
-export const priceRangeSchema = z.enum(["Under ₹300", "₹300–₹500", "₹500+"]);
+export const priceRangeSchema = z.enum([
+  "₹0 - ₹499",
+  "₹500 - ₹999",
+  "₹1,000 - ₹1,499",
+  "₹1,500 - ₹1,999",
+  "₹2,000 - ₹2,499",
+  "₹2,500 & above",
+]);
 
 export const imageSignalsSchema = z.object({
   dominantColors: z.array(z.string()).max(8),

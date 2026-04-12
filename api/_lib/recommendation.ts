@@ -295,9 +295,27 @@ function joinedText(product: MerchantProduct) {
 }
 
 function priceMatches(priceRange: PriceRange, price: number) {
-  if (priceRange === "Under ₹300") return price < 300;
-  if (priceRange === "₹300–₹500") return price >= 300 && price <= 500;
-  return price >= 500;
+  if (priceRange === "₹0 - ₹499") {
+    return price >= 0 && price <= 499;
+  }
+
+  if (priceRange === "₹500 - ₹999") {
+    return price >= 500 && price <= 999;
+  }
+
+  if (priceRange === "₹1,000 - ₹1,499") {
+    return price >= 1000 && price <= 1499;
+  }
+
+  if (priceRange === "₹1,500 - ₹1,999") {
+    return price >= 1500 && price <= 1999;
+  }
+
+  if (priceRange === "₹2,000 - ₹2,499") {
+    return price >= 2000 && price <= 2499;
+  }
+
+  return price >= 2500;
 }
 
 function isTempStagedUrl(url: string | null | undefined) {

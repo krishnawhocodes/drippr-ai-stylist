@@ -95,8 +95,15 @@ const STEPS = [
   {
     key: "priceRange" as const,
     stepNumber: 6,
-    question: "Choose your range",
-    options: ["Under ₹300", "₹300–₹500", "₹500+"],
+    question: "Choose your budget",
+    options: [
+      "₹0 - ₹499",
+      "₹500 - ₹999",
+      "₹1,000 - ₹1,499",
+      "₹1,500 - ₹1,999",
+      "₹2,000 - ₹2,499",
+      "₹2,500 & above",
+    ],
     type: "chips" as const,
   },
 ];

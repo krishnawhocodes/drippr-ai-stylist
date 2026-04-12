@@ -1,5 +1,11 @@
 export type Gender = "Women" | "Men";
-export type PriceRange = "Under ₹300" | "₹300–₹500" | "₹500+";
+export type PriceRange =
+  | "₹0 - ₹499"
+  | "₹500 - ₹999"
+  | "₹1,000 - ₹1,499"
+  | "₹1,500 - ₹1,999"
+  | "₹2,000 - ₹2,499"
+  | "₹2,500 & above";
 
 export interface PhotoValidationSummary {
   personCount: number;
