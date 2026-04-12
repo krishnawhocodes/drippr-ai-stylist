@@ -5,8 +5,7 @@ import StepCard from "@/components/StyleConcierge/StepCard";
 import CuratingLoader from "@/components/StyleConcierge/CuratingLoader";
 import ResultsSection from "@/components/StyleConcierge/ResultsSection";
 import { prepareValidatedPhoto } from "@/lib/photoValidation";
-import { recommendStyle } from "@/lib/api";
-import { getAvailableCategoryOptions} from "@/lib/api";
+import { getAvailableCategoryOptions, recommendStyle } from "@/lib/api";
 import { openStoreCart } from "@/lib/storeLinks";
 import type {
   Gender,
@@ -78,16 +77,7 @@ const STEPS = [
     key: "category" as const,
     stepNumber: 4,
     question: "Choose a category",
-    options: [
-      "Tops & Dresses",
-      "Cargo & Pants",
-      "Tees",
-      "Shorts & Skirts",
-      "Sweatshirts & Hoodies",
-      "Jackets",
-      "Cord Set",
-      "Athleisure",
-    ],
+    options: ALL_CATEGORY_OPTIONS,
     type: "chips" as const,
   },
   {
@@ -107,15 +97,14 @@ const STEPS = [
   },
 ];
 
-const [categoryOptions, setCategoryOptions] =
-  useState<string[]>(ALL_CATEGORY_OPTIONS);
-
 const Index = () => {
   const [answers, setAnswers] = useState<Answers>(INITIAL);
   const [activeStep, setActiveStep] = useState(0);
   const [curating, setCurating] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [bagCount, setBagCount] = useState(0);
+  const [categoryOptions, setCategoryOptions] =
+    useState<string[]>(ALL_CATEGORY_OPTIONS);
 
   const [recommendedProducts, setRecommendedProducts] = useState<
     RecommendedProduct[]
@@ -191,7 +180,6 @@ const Index = () => {
       } as Answers;
 
       setAnswers(nextAnswers);
-      const nextStep = activeStep + 1;
 
       if (key === "vibe" && nextAnswers.gender) {
         void getAvailableCategoryOptions({
@@ -206,6 +194,16 @@ const Index = () => {
           .catch(() => {
             setCategoryOptions(ALL_CATEGORY_OPTIONS);
           });
+      }
+
+      const nextStep = activeStep + 1;
+
+      if (nextStep < STEPS.length) {
+        const delay = key === "photo" ? 120 : 90;
+        window.setTimeout(() => {
+          setActiveStep(nextStep);
+        }, delay);
+        return;
       }
 
       runRecommendation(nextAnswers);
@@ -240,6 +238,10 @@ const Index = () => {
       return updated as Answers;
     });
 
+    if (stepIndex <= 3) {
+      setCategoryOptions(ALL_CATEGORY_OPTIONS);
+    }
+
     setActiveStep(stepIndex);
     setCurating(false);
     resetRecommendationState();
@@ -249,6 +251,7 @@ const Index = () => {
     setAnswers(INITIAL);
     setActiveStep(0);
     setCurating(false);
+    setCategoryOptions(ALL_CATEGORY_OPTIONS);
     resetRecommendationState();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -271,7 +274,9 @@ const Index = () => {
 
   return (
     <div
-      className={`bg-background grain-overlay corner-glow ${!isCompact ? "h-screen overflow-hidden" : "min-h-screen"}`}
+      className={`bg-background grain-overlay corner-glow ${
+        !isCompact ? "h-screen overflow-hidden" : "min-h-screen"
+      }`}
     >
       <TopBar
         bagCount={bagCount}
