@@ -8,7 +8,7 @@ type BagItem = {
   currency: string;
 };
 
-const STORAGE_KEY = "drippr_ai_bag_v3";
+const STORAGE_KEY = "drippr_ai_bag_v4";
 const STORE_BASE_URL = (
   import.meta.env.VITE_STORE_BASE_URL || "https://drippr.in"
 ).replace(/\/$/, "");
@@ -110,7 +110,7 @@ export function subscribeToAiBagCount(listener: (count: number) => void) {
   };
 }
 
-export function buildStoreCartPermalink() {
+function buildBridgeUrl() {
   const items = readBag();
 
   if (!items.length) {
@@ -130,13 +130,13 @@ export function buildStoreCartPermalink() {
     .map(([variantId, quantity]) => `${variantId}:${quantity}`)
     .join(",");
 
-  return `${STORE_BASE_URL}/cart/${lineItems}`;
+  return `${STORE_BASE_URL}/pages/ai-bag-bridge?items=${encodeURIComponent(lineItems)}`;
 }
 
 export function openAiBagInStore() {
-  const url = buildStoreCartPermalink();
+  const url = buildBridgeUrl();
 
-  // reset AI-side bag before leaving, so reopening the stylist starts from zero
+  // reset AI-side bag before leaving so returning to the stylist starts from zero
   clearAiBag();
 
   window.location.href = url;
