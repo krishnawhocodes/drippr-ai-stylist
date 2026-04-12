@@ -1,6 +1,5 @@
 import { ExternalLink, ShoppingBag } from "lucide-react";
 import type { RecommendedProduct } from "@/types/recommendation";
-import { openAddToCart } from "@/lib/storeLinks";
 
 interface ProductCardProps {
   product: RecommendedProduct;
@@ -67,15 +66,10 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
             onClick={() => {
               if (product.soldOut) return;
               onAddToBag(product);
-              if (product.addToCartUrl) {
-                openAddToCart(product.addToCartUrl);
-              } else if (product.storeUrl) {
-                openAddToCart(product.storeUrl);
-              }
             }}
-            disabled={product.soldOut}
+            disabled={product.soldOut || !product.addToCartUrl}
             className={`chip-base w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2 ${
-              product.soldOut
+              product.soldOut || !product.addToCartUrl
                 ? "opacity-50 cursor-not-allowed"
                 : "chip-selected"
             }`}

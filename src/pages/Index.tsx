@@ -6,7 +6,11 @@ import CuratingLoader from "@/components/StyleConcierge/CuratingLoader";
 import ResultsSection from "@/components/StyleConcierge/ResultsSection";
 import { prepareValidatedPhoto } from "@/lib/photoValidation";
 import { getAvailableCategoryOptions, recommendStyle } from "@/lib/api";
-import { openStoreCart } from "@/lib/storeLinks";
+import {
+  addToAiBag,
+  openAiBagInStore,
+  subscribeToAiBagCount,
+} from "@/lib/aibag";
 import type {
   Gender,
   OccasionContext,
@@ -119,6 +123,11 @@ const Index = () => {
 
   const isCompact = activeStep >= 1 || showResults;
   const shouldLockViewport = activeStep === 0 && !curating && !showResults;
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAiBagCount(setBagCount);
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (shouldLockViewport) {
@@ -257,7 +266,7 @@ const Index = () => {
   }, []);
 
   const handleAddToBag = useCallback((product: RecommendedProduct) => {
-    setBagCount((prev) => prev + 1);
+    addToAiBag(product);
   }, []);
 
   const handleRefine = () => {
@@ -281,7 +290,7 @@ const Index = () => {
       <TopBar
         bagCount={bagCount}
         onRestart={handleRestart}
-        onOpenBag={openStoreCart}
+        onOpenBag={openAiBagInStore}
         currentStep={showResults ? 6 : activeStep}
         totalSteps={6}
         showProgress={activeStep >= 1 || showResults}
