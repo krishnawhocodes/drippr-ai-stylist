@@ -73,6 +73,7 @@ export interface RecommendedProduct {
   description: string;
   price: number;
   currency: string;
+  soldOut: boolean;
   imageUrl: string | null;
   merchantId: string;
   sku: string;

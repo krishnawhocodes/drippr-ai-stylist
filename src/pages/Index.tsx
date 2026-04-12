@@ -6,6 +6,7 @@ import CuratingLoader from "@/components/StyleConcierge/CuratingLoader";
 import ResultsSection from "@/components/StyleConcierge/ResultsSection";
 import { prepareValidatedPhoto } from "@/lib/photoValidation";
 import { recommendStyle } from "@/lib/api";
+import { getAvailableCategoryOptions} from "@/lib/api";
 import { openStoreCart } from "@/lib/storeLinks";
 import type {
   Gender,
@@ -31,6 +32,17 @@ const INITIAL: Answers = {
   occasion: null,
   priceRange: null,
 };
+
+const ALL_CATEGORY_OPTIONS = [
+  "Tops & Dresses",
+  "Cargo & Pants",
+  "Tees",
+  "Shorts & Skirts",
+  "Sweatshirts & Hoodies",
+  "Jackets",
+  "Cord Set",
+  "Athleisure",
+];
 
 const STEPS = [
   {
@@ -94,6 +106,9 @@ const STEPS = [
     type: "chips" as const,
   },
 ];
+
+const [categoryOptions, setCategoryOptions] =
+  useState<string[]>(ALL_CATEGORY_OPTIONS);
 
 const Index = () => {
   const [answers, setAnswers] = useState<Answers>(INITIAL);
@@ -178,12 +193,19 @@ const Index = () => {
       setAnswers(nextAnswers);
       const nextStep = activeStep + 1;
 
-      if (nextStep < STEPS.length) {
-        const delay = key === "photo" ? 120 : 90;
-        window.setTimeout(() => {
-          setActiveStep(nextStep);
-        }, delay);
-        return;
+      if (key === "vibe" && nextAnswers.gender) {
+        void getAvailableCategoryOptions({
+          gender: nextAnswers.gender as Gender,
+          vibe: value,
+        })
+          .then((options) => {
+            setCategoryOptions(
+              options.length > 0 ? options : ALL_CATEGORY_OPTIONS,
+            );
+          })
+          .catch(() => {
+            setCategoryOptions(ALL_CATEGORY_OPTIONS);
+          });
       }
 
       runRecommendation(nextAnswers);
@@ -282,7 +304,9 @@ const Index = () => {
                 stepNumber={step.stepNumber}
                 question={step.question}
                 helperText={step.helperText}
-                options={step.options}
+                options={
+                  step.key === "category" ? categoryOptions : step.options
+                }
                 type={step.type}
                 answered={isAnswered ? answerValue : undefined}
                 onAnswer={(val) => handleAnswer(step.key, val)}

@@ -1,4 +1,5 @@
 import type {
+  Gender,
   RecommendRequest,
   RecommendResponse,
 } from "@/types/recommendation";
@@ -42,4 +43,24 @@ export async function recommendStyle(
   }
 
   return response.json();
+}
+
+export async function getAvailableCategoryOptions(payload: {
+  gender: Gender;
+  vibe: string;
+}): Promise<string[]> {
+  const response = await fetch(`${getApiBaseUrl()}/api/category-options`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+
+  const data = await response.json();
+  return Array.isArray(data?.categories) ? data.categories : [];
 }

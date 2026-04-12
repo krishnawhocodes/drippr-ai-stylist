@@ -30,6 +30,17 @@ const VIBE_KEYWORDS: Record<string, string[]> = {
   ],
 };
 
+export const ALL_CATEGORY_OPTIONS = [
+  "Tops & Dresses",
+  "Cargo & Pants",
+  "Tees",
+  "Shorts & Skirts",
+  "Sweatshirts & Hoodies",
+  "Jackets",
+  "Cord Set",
+  "Athleisure",
+] as const;
+
 const CATEGORY_PRODUCT_TYPE_ALIASES: Record<string, string[]> = {
   "Tops & Dresses": [
     "top",
@@ -51,7 +62,6 @@ const CATEGORY_PRODUCT_TYPE_ALIASES: Record<string, string[]> = {
     "jogger",
     "joggers",
     "jeans",
-    "denim",
   ],
   Tees: ["tee", "tees", "t shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt", "skirts"],
@@ -91,19 +101,19 @@ const CATEGORY_TITLE_TAG_ALIASES: Record<string, string[]> = {
     "tank",
     "crop top",
   ],
-  "Cargo & Pants": [
-    "cargo",
-    "pants",
-    "pant",
-    "trouser",
-    "jogger",
-    "jeans",
-    "denim",
-  ],
+  "Cargo & Pants": ["cargo", "pants", "pant", "trouser", "jogger", "jeans"],
   Tees: ["tee", "t shirt", "tshirt", "polo"],
   "Shorts & Skirts": ["short", "shorts", "skirt"],
   "Sweatshirts & Hoodies": ["sweatshirt", "hoodie", "pullover"],
-  Jackets: ["jacket", "coat", "blazer", "overshirt", "windbreaker", "bomber"],
+  Jackets: [
+    "jacket",
+    "coat",
+    "blazer",
+    "overshirt",
+    "windbreaker",
+    "bomber",
+    "denim jacket",
+  ],
   "Cord Set": ["co ord", "coord", "cord set", "set", "kurta set"],
   Athleisure: [
     "athleisure",
@@ -126,6 +136,9 @@ const CATEGORY_CONFLICT_ALIASES: Record<string, string[]> = {
     "joggers",
     "jeans",
     "cargo",
+    "jacket",
+    "hoodie",
+    "sweatshirt",
   ],
   "Cargo & Pants": [
     "top",
@@ -139,6 +152,14 @@ const CATEGORY_CONFLICT_ALIASES: Record<string, string[]> = {
     "dress",
     "dresses",
     "kurta",
+    "jacket",
+    "blazer",
+    "coat",
+    "overshirt",
+    "windbreaker",
+    "bomber",
+    "hoodie",
+    "sweatshirt",
   ],
   Tees: [
     "pant",
@@ -172,6 +193,7 @@ const CATEGORY_CONFLICT_ALIASES: Record<string, string[]> = {
     "jeans",
     "skirt",
     "jacket",
+    "blazer",
   ],
   Jackets: [
     "tank",
@@ -260,6 +282,18 @@ function countExactAliasMatches(
   );
 }
 
+function joinedText(product: MerchantProduct) {
+  return normalizeText(
+    [
+      product.title,
+      product.description ?? "",
+      product.productType ?? "",
+      (product.tags ?? []).join(" "),
+      product.vendor ?? "",
+    ].join(" "),
+  );
+}
+
 function priceMatches(priceRange: PriceRange, price: number) {
   if (priceRange === "Under ₹300") return price < 300;
   if (priceRange === "₹300–₹500") return price >= 300 && price <= 500;
@@ -274,20 +308,20 @@ function isTempStagedUrl(url: string | null | undefined) {
   );
 }
 
-function getPrimaryImage(product: MerchantProduct) {
+export function getPrimaryImage(product: MerchantProduct) {
   if (product.image && !isTempStagedUrl(product.image)) {
     return product.image;
   }
 
-  const permanentFromImages = (product.images ?? []).find(
+  const fromImages = (product.images ?? []).find(
     (url) => !!url && !isTempStagedUrl(url),
   );
-  if (permanentFromImages) return permanentFromImages;
+  if (fromImages) return fromImages;
 
-  const permanentFromImageUrls = (product.imageUrls ?? []).find(
+  const fromImageUrls = (product.imageUrls ?? []).find(
     (url) => !!url && !isTempStagedUrl(url),
   );
-  if (permanentFromImageUrls) return permanentFromImageUrls;
+  if (fromImageUrls) return fromImageUrls;
 
   return null;
 }
@@ -342,14 +376,7 @@ function inventoryAllowed(product: MerchantProduct) {
 function isJunkProduct(product: MerchantProduct) {
   const title = normalizeText(product.title);
   const sku = normalizeText(product.sku);
-  const full = normalizeText(
-    [
-      product.title,
-      product.description ?? "",
-      product.productType ?? "",
-      (product.tags ?? []).join(" "),
-    ].join(" "),
-  );
+  const full = joinedText(product);
 
   return JUNK_PATTERNS.some(
     (pattern) =>
@@ -456,6 +483,38 @@ function buildReason(parts: string[], soldOut: boolean) {
   return soldOut ? `${base} Currently sold out.` : base;
 }
 
+function vibeHitsForProduct(product: MerchantProduct, vibe: string) {
+  const aliases = VIBE_KEYWORDS[vibe] ?? [normalizeText(vibe)];
+  const text = joinedText(product);
+  const tokens = tokenize(text);
+  return countExactAliasMatches(text, tokens, aliases);
+}
+
+export function getAvailableCategories(args: {
+  products: MerchantProduct[];
+  gender: "Women" | "Men";
+  vibe: string;
+}) {
+  const baseEligible = args.products.filter((product) => {
+    if (!inventoryAllowed(product)) return false;
+    if (isJunkProduct(product)) return false;
+    if (!isGenderAllowed(product, args.gender)) return false;
+    return true;
+  });
+
+  const vibeFiltered = baseEligible.filter(
+    (product) => vibeHitsForProduct(product, args.vibe) > 0,
+  );
+  const source = vibeFiltered.length > 0 ? vibeFiltered : baseEligible;
+
+  return ALL_CATEGORY_OPTIONS.filter((category) =>
+    source.some((product) => {
+      const signals = categorySignals(product, category);
+      return signals.strictMatch || signals.titleTagMatch;
+    }),
+  );
+}
+
 export function buildCandidatePool(args: {
   products: MerchantProduct[];
   gender: "Women" | "Men";
@@ -533,22 +592,8 @@ export function scoreProducts(args: {
 
   return args.products
     .map((product) => {
-      const fullText = normalizeText(
-        [
-          product.title,
-          product.description ?? "",
-          product.productType ?? "",
-          (product.tags ?? []).join(" "),
-        ].join(" "),
-      );
-      const fullTokens = tokenize(
-        [
-          product.title,
-          product.description ?? "",
-          product.productType ?? "",
-          (product.tags ?? []).join(" "),
-        ].join(" "),
-      );
+      const fullText = joinedText(product);
+      const fullTokens = tokenize(fullText);
 
       const imageUrl = getPrimaryImage(product);
       const cat = categorySignals(product, args.category);
@@ -592,17 +637,15 @@ export function scoreProducts(args: {
         vendor: product.vendor ?? "DRIPPR Marketplace",
         score,
         reason: buildReason(reasons, soldOut),
+        soldOut,
         shopifyProductId: product.shopifyProductId ?? null,
         storeUrl: null,
         addToCartUrl: null,
       };
     })
     .sort((a, b) => {
-      const aSoldOut = a.reason.includes("Currently sold out.");
-      const bSoldOut = b.reason.includes("Currently sold out.");
-
-      if (aSoldOut !== bSoldOut) {
-        return aSoldOut ? 1 : -1;
+      if (a.soldOut !== b.soldOut) {
+        return a.soldOut ? 1 : -1;
       }
 
       return b.score - a.score || a.price - b.price;

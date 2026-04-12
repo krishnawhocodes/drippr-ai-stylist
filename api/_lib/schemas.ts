@@ -88,6 +88,7 @@ export const recommendedProductSchema = z.object({
   vendor: z.string(),
   score: z.number(),
   reason: z.string(),
+  soldOut: z.boolean(),
   shopifyProductId: z.string().nullable(),
   storeUrl: z.string().nullable(),
   addToCartUrl: z.string().nullable(),

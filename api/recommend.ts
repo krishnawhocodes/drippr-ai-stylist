@@ -213,12 +213,20 @@ async function shopifyGraphQL(
   return json;
 }
 
-const PRODUCT_LINK_QUERY = `
-  query ProductLink($id: ID!) {
+const PRODUCT_META_QUERY = `
+  query ProductMeta($id: ID!) {
     product(id: $id) {
       id
       handle
       onlineStoreUrl
+      featuredImage {
+        url
+      }
+      images(first: 10) {
+        nodes {
+          url
+        }
+      }
     }
   }
 `;
@@ -251,39 +259,56 @@ function buildAddToCartUrl(variantNumericId: string) {
   )}&quantity=1&return_to=/cart`;
 }
 
-async function fetchStoreUrl(
-  shopifyProductId: string,
-  title: string,
-): Promise<string | null> {
+async function fetchShopifyMeta(shopifyProductId: string, title: string) {
   try {
-    const result = await shopifyGraphQL(PRODUCT_LINK_QUERY, {
+    const result = await shopifyGraphQL(PRODUCT_META_QUERY, {
       id: shopifyProductId,
     });
     const product = result?.data?.product;
+
+    const imageCandidates = [
+      typeof product?.featuredImage?.url === "string"
+        ? product.featuredImage.url.trim()
+        : "",
+      ...(Array.isArray(product?.images?.nodes)
+        ? product.images.nodes
+            .map((node: any) =>
+              typeof node?.url === "string" ? node.url.trim() : "",
+            )
+            .filter(Boolean)
+        : []),
+    ].filter(Boolean);
+
+    let storeUrl = buildStoreSearchUrl(title);
 
     if (
       typeof product?.onlineStoreUrl === "string" &&
       product.onlineStoreUrl.trim()
     ) {
-      return product.onlineStoreUrl.trim();
+      storeUrl = product.onlineStoreUrl.trim();
+    } else if (typeof product?.handle === "string" && product.handle.trim()) {
+      storeUrl = `${STORE_BASE_URL}/products/${product.handle.trim()}`;
     }
 
-    if (typeof product?.handle === "string" && product.handle.trim()) {
-      return `${STORE_BASE_URL}/products/${product.handle.trim()}`;
-    }
-
-    return buildStoreSearchUrl(title);
+    return {
+      storeUrl,
+      imageUrl: imageCandidates[0] || null,
+      allImages: imageCandidates,
+    };
   } catch {
-    return buildStoreSearchUrl(title);
+    return {
+      storeUrl: buildStoreSearchUrl(title),
+      imageUrl: null,
+      allImages: [],
+    };
   }
 }
 
-async function hydrateStoreLinks(
-  products: ReturnType<typeof scoreProducts> extends Promise<infer U>
-    ? U
-    : ReturnType<typeof scoreProducts>,
+async function hydrateStoreLinksAndImages(
+  products: ReturnType<typeof scoreProducts>,
   sourceProducts: MerchantProduct[],
 ) {
+  const adminDb = getAdminDb();
   const sourceById = new Map(sourceProducts.map((p) => [p.id, p] as const));
 
   return Promise.all(
@@ -293,12 +318,33 @@ async function hydrateStoreLinks(
         ? getPrimaryVariantNumericId(source)
         : null;
 
-      const storeUrl = product.shopifyProductId
-        ? await fetchStoreUrl(product.shopifyProductId, product.title)
-        : buildStoreSearchUrl(product.title);
+      let storeUrl = buildStoreSearchUrl(product.title);
+      let imageUrl = product.imageUrl;
+
+      if (product.shopifyProductId) {
+        const meta = await fetchShopifyMeta(
+          product.shopifyProductId,
+          product.title,
+        );
+        storeUrl = meta.storeUrl;
+        if (!imageUrl && meta.imageUrl) {
+          imageUrl = meta.imageUrl;
+
+          await adminDb.collection("merchantProducts").doc(product.id).set(
+            {
+              image: meta.imageUrl,
+              images: meta.allImages,
+              imageUrls: meta.allImages,
+              updatedAt: Date.now(),
+            },
+            { merge: true },
+          );
+        }
+      }
 
       return {
         ...product,
+        imageUrl,
         storeUrl,
         addToCartUrl: variantNumericId
           ? buildAddToCartUrl(variantNumericId)
@@ -361,7 +407,7 @@ export default async function handler(req: any, res: any) {
       maxResults: 100,
     });
 
-    const finalProducts = await hydrateStoreLinks(
+    const finalProducts = await hydrateStoreLinksAndImages(
       rankedProducts,
       pool.products,
     );
@@ -385,7 +431,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       ...response,
       debugApplied: {
-        engineVersion: "store-cart-link-v12",
+        engineVersion: "category-fix-image-hydrate-v13",
         category: body.category,
         vibe: body.vibe,
         priceRange: body.priceRange,

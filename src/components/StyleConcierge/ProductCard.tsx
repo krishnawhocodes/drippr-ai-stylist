@@ -28,6 +28,12 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
             No image available
           </div>
         )}
+
+        {product.soldOut && (
+          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/85 border border-border text-[11px] font-semibold text-foreground backdrop-blur">
+            Sold Out
+          </div>
+        )}
       </div>
 
       <div className="p-4 flex flex-1 flex-col">
@@ -59,6 +65,7 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
 
           <button
             onClick={() => {
+              if (product.soldOut) return;
               onAddToBag(product);
               if (product.addToCartUrl) {
                 openAddToCart(product.addToCartUrl);
@@ -66,10 +73,15 @@ const ProductCard = ({ product, index, onAddToBag }: ProductCardProps) => {
                 openAddToCart(product.storeUrl);
               }
             }}
-            className="chip-base chip-selected w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2"
+            disabled={product.soldOut}
+            className={`chip-base w-full min-h-[48px] text-sm px-4 py-3 flex items-center justify-center gap-2 ${
+              product.soldOut
+                ? "opacity-50 cursor-not-allowed"
+                : "chip-selected"
+            }`}
           >
             <ShoppingBag size={14} />
-            Bag
+            {product.soldOut ? "Sold out" : "Bag"}
           </button>
         </div>
       </div>
