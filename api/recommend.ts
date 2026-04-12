@@ -227,12 +227,25 @@ const PRODUCT_META_QUERY = `
           url
         }
       }
+      variants(first: 20) {
+        nodes {
+          id
+          availableForSale
+        }
+      }
     }
   }
 `;
 
 function buildStoreSearchUrl(title: string) {
   return `${STORE_BASE_URL}/search?q=${encodeURIComponent(title)}`;
+}
+
+function extractNumericIdFromGid(value: string | null | undefined) {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const match = trimmed.match(/(\d+)$/);
+  return match ? match[1] : null;
 }
 
 function getPrimaryVariantNumericId(product: MerchantProduct): string | null {
@@ -244,9 +257,8 @@ function getPrimaryVariantNumericId(product: MerchantProduct): string | null {
     }
 
     if (typeof value === "string" && value.trim()) {
-      const trimmed = value.trim();
-      const gidMatch = trimmed.match(/(\d+)$/);
-      return gidMatch ? gidMatch[1] : trimmed;
+      const numeric = extractNumericIdFromGid(value);
+      if (numeric) return numeric;
     }
   }
 
@@ -290,16 +302,33 @@ async function fetchShopifyMeta(shopifyProductId: string, title: string) {
       storeUrl = `${STORE_BASE_URL}/products/${product.handle.trim()}`;
     }
 
+    const variantNodes = Array.isArray(product?.variants?.nodes)
+      ? product.variants.nodes
+      : [];
+
+    const liveAvailableVariantId =
+      variantNodes.find(
+        (node: any) => node?.availableForSale && typeof node?.id === "string",
+      )?.id || null;
+
+    const fallbackVariantId =
+      variantNodes.find((node: any) => typeof node?.id === "string")?.id ||
+      null;
+
     return {
       storeUrl,
       imageUrl: imageCandidates[0] || null,
       allImages: imageCandidates,
+      liveVariantNumericId:
+        extractNumericIdFromGid(liveAvailableVariantId) ??
+        extractNumericIdFromGid(fallbackVariantId),
     };
   } catch {
     return {
       storeUrl: buildStoreSearchUrl(title),
       imageUrl: null,
       allImages: [],
+      liveVariantNumericId: null,
     };
   }
 }
@@ -314,19 +343,21 @@ async function hydrateStoreLinksAndImages(
   return Promise.all(
     products.map(async (product) => {
       const source = sourceById.get(product.id);
-      const variantNumericId = source
-        ? getPrimaryVariantNumericId(source)
-        : null;
 
       let storeUrl = buildStoreSearchUrl(product.title);
       let imageUrl = product.imageUrl;
+      let variantNumericId: string | null = source
+        ? getPrimaryVariantNumericId(source)
+        : null;
 
       if (product.shopifyProductId) {
         const meta = await fetchShopifyMeta(
           product.shopifyProductId,
           product.title,
         );
+
         storeUrl = meta.storeUrl;
+
         if (!imageUrl && meta.imageUrl) {
           imageUrl = meta.imageUrl;
 
@@ -340,6 +371,11 @@ async function hydrateStoreLinksAndImages(
             { merge: true },
           );
         }
+
+        // Prefer live Shopify variant over Firestore mirror
+        if (meta.liveVariantNumericId) {
+          variantNumericId = meta.liveVariantNumericId;
+        }
       }
 
       return {
@@ -347,7 +383,9 @@ async function hydrateStoreLinksAndImages(
         imageUrl,
         storeUrl,
         addToCartUrl: variantNumericId
-          ? buildAddToCartUrl(variantNumericId)
+          ? `${STORE_BASE_URL}/cart/add?id=${encodeURIComponent(
+              variantNumericId,
+            )}&quantity=1&return_to=/cart`
           : null,
       };
     }),
