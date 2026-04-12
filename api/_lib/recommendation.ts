@@ -292,6 +292,22 @@ function getPrimaryImage(product: MerchantProduct) {
   return null;
 }
 
+function isSoldOut(product: MerchantProduct) {
+  const status = normalizeText(product.status);
+
+  if (
+    ["sold out", "sold_out", "out of stock", "out_of_stock"].includes(status)
+  ) {
+    return true;
+  }
+
+  if (typeof product.inventoryQty === "number") {
+    return product.inventoryQty <= 0;
+  }
+
+  return false;
+}
+
 function inventoryAllowed(product: MerchantProduct) {
   if (typeof product.price !== "number" || product.price <= 0) {
     return false;
@@ -311,7 +327,16 @@ function inventoryAllowed(product: MerchantProduct) {
     return true;
   }
 
-  return ["active", "approved", "pending", "update_in_review"].includes(status);
+  return [
+    "active",
+    "approved",
+    "pending",
+    "update_in_review",
+    "sold out",
+    "sold_out",
+    "out of stock",
+    "out_of_stock",
+  ].includes(status);
 }
 
 function isJunkProduct(product: MerchantProduct) {
@@ -421,11 +446,14 @@ function categorySignals(product: MerchantProduct, selectedCategory: string) {
   };
 }
 
-function buildReason(parts: string[]) {
+function buildReason(parts: string[], soldOut: boolean) {
   const filtered = [...new Set(parts.filter(Boolean))];
-  return filtered.length > 0
-    ? filtered.join(" ")
-    : "Good match for your selected filters.";
+  const base =
+    filtered.length > 0
+      ? filtered.join(" ")
+      : "Good match for your selected filters.";
+
+  return soldOut ? `${base} Currently sold out.` : base;
 }
 
 export function buildCandidatePool(args: {
@@ -529,6 +557,7 @@ export function scoreProducts(args: {
         fullTokens,
         vibeAliases,
       );
+      const soldOut = isSoldOut(product);
 
       let score = 0;
       const reasons: string[] = [];
@@ -547,6 +576,10 @@ export function scoreProducts(args: {
         score += 5;
       }
 
+      if (soldOut) {
+        score -= 1000;
+      }
+
       return {
         id: product.id,
         title: product.title || "Untitled product",
@@ -558,12 +591,21 @@ export function scoreProducts(args: {
         sku: product.sku ?? "",
         vendor: product.vendor ?? "DRIPPR Marketplace",
         score,
-        reason: buildReason(reasons),
+        reason: buildReason(reasons, soldOut),
         shopifyProductId: product.shopifyProductId ?? null,
         storeUrl: null,
         addToCartUrl: null,
       };
     })
-    .sort((a, b) => b.score - a.score || a.price - b.price)
+    .sort((a, b) => {
+      const aSoldOut = a.reason.includes("Currently sold out.");
+      const bSoldOut = b.reason.includes("Currently sold out.");
+
+      if (aSoldOut !== bSoldOut) {
+        return aSoldOut ? 1 : -1;
+      }
+
+      return b.score - a.score || a.price - b.price;
+    })
     .slice(0, maxResults);
 }

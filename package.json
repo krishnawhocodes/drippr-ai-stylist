@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev:api": "vercel dev --listen 3000"
+    "dev:api": "vercel dev --listen 3000",
+    "backfill:images": "node scripts/backfill-product-images.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -50,7 +51,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^12.11.0",
-    "firebase-admin": "^13.7.0",
+    "firebase-admin": "^13.8.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
