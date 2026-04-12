@@ -10,7 +10,7 @@ import {
   addToAiBag,
   openAiBagInStore,
   subscribeToAiBagCount,
-} from "@/lib/aibag";
+} from "@/lib/aiBag";
 import type {
   Gender,
   OccasionContext,
