@@ -8,17 +8,14 @@ type BagItem = {
   currency: string;
 };
 
-const STORAGE_KEY = "drippr_ai_bag_v1";
+const STORAGE_KEY = "drippr_ai_bag_v2";
 const STORE_BASE_URL = (
   import.meta.env.VITE_STORE_BASE_URL || "https://drippr.in"
 ).replace(/\/$/, "");
-const STORE_CHECKOUT_DOMAIN = (
-  import.meta.env.VITE_STORE_CHECKOUT_DOMAIN || "dripprnow.myshopify.com"
-).replace(/^https?:\/\//, "");
 
 function readBag(): BagItem[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -28,7 +25,20 @@ function readBag(): BagItem[] {
 }
 
 function writeBag(items: BagItem[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore storage errors
+  }
+  window.dispatchEvent(new CustomEvent("drippr-ai-bag-updated"));
+}
+
+export function clearAiBag() {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
   window.dispatchEvent(new CustomEvent("drippr-ai-bag-updated"));
 }
 
@@ -86,10 +96,6 @@ export function getAiBagCount() {
   return readBag().reduce((sum, item) => sum + item.quantity, 0);
 }
 
-export function clearAiBag() {
-  writeBag([]);
-}
-
 export function subscribeToAiBagCount(listener: (count: number) => void) {
   const handler = () => listener(getAiBagCount());
 
@@ -124,9 +130,14 @@ export function buildStoreCartPermalink() {
     .map(([variantId, quantity]) => `${variantId}:${quantity}`)
     .join(",");
 
-  return `https://${STORE_CHECKOUT_DOMAIN}/cart/${lineItems}?storefront=true`;
+  return `${STORE_BASE_URL}/cart/${lineItems}?storefront=true`;
 }
 
 export function openAiBagInStore() {
-  window.location.href = buildStoreCartPermalink();
+  const url = buildStoreCartPermalink();
+
+  // reset AI-side bag before leaving, so coming back starts from zero
+  clearAiBag();
+
+  window.location.href = url;
 }
