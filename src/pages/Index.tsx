@@ -18,6 +18,12 @@ import type {
   RecommendedProduct,
 } from "@/types/recommendation";
 
+type PhotoStyleSnapshot = {
+  skinToneLabel: string;
+  bodyFrameLabel: string;
+  poseLabel: string;
+};
+
 interface Answers {
   gender: Gender | null;
   photo: string | null;
@@ -60,7 +66,7 @@ const STEPS = [
     stepNumber: 2,
     question: "Upload a full-body photo",
     helperText:
-      "This is only used to verify that the image is a proper head-to-toe photo.",
+      "We’ll verify that the image is head-to-toe and show a quick style snapshot.",
     type: "photo" as const,
   },
   {
@@ -116,6 +122,8 @@ const Index = () => {
   const [bagCount, setBagCount] = useState(0);
   const [categoryOptions, setCategoryOptions] =
     useState<string[]>(ALL_CATEGORY_OPTIONS);
+  const [photoStyleSnapshot, setPhotoStyleSnapshot] =
+    useState<PhotoStyleSnapshot | null>(null);
 
   const [recommendedProducts, setRecommendedProducts] = useState<
     RecommendedProduct[]
@@ -200,20 +208,10 @@ const Index = () => {
 
       const nextStep = activeStep + 1;
 
-      // Move forward immediately for faster UX
-      if (nextStep < STEPS.length) {
-        const delay = key === "photo" ? 60 : 20;
-
-        window.setTimeout(() => {
-          setActiveStep(nextStep);
-        }, delay);
-      }
-
-      // Load category options in background after vibe selection
       if (key === "vibe" && nextAnswers.gender) {
         const cacheKey = `${nextAnswers.gender}__${value}`;
-
         const cached = categoryOptionsCache.current[cacheKey];
+
         if (cached && cached.length > 0) {
           setCategoryOptions(cached);
         } else {
@@ -224,7 +222,6 @@ const Index = () => {
             .then((options) => {
               const finalOptions =
                 options.length > 0 ? options : ALL_CATEGORY_OPTIONS;
-
               categoryOptionsCache.current[cacheKey] = finalOptions;
               setCategoryOptions(finalOptions);
             })
@@ -234,14 +231,18 @@ const Index = () => {
         }
       }
 
-      if (nextStep >= STEPS.length) {
-        runRecommendation(nextAnswers);
+      if (nextStep < STEPS.length) {
+        const delay = key === "photo" ? 70 : 20;
+        window.setTimeout(() => {
+          setActiveStep(nextStep);
+        }, delay);
+        return;
       }
+
+      runRecommendation(nextAnswers);
     },
     [activeStep, answers],
   );
-
-      
 
   const handlePhotoSelected = useCallback(async (file: File) => {
     const prepared = await prepareValidatedPhoto(file);
@@ -252,6 +253,8 @@ const Index = () => {
           "Please upload a full-body photo from head to toe.",
       );
     }
+
+    setPhotoStyleSnapshot(prepared.styleSnapshot);
 
     return "Full-body photo verified";
   }, []);
@@ -274,6 +277,10 @@ const Index = () => {
       setCategoryOptions(ALL_CATEGORY_OPTIONS);
     }
 
+    if (stepIndex <= 1) {
+      setPhotoStyleSnapshot(null);
+    }
+
     setActiveStep(stepIndex);
     setCurating(false);
     resetRecommendationState();
@@ -284,6 +291,7 @@ const Index = () => {
     setActiveStep(0);
     setCurating(false);
     setCategoryOptions(ALL_CATEGORY_OPTIONS);
+    setPhotoStyleSnapshot(null);
     resetRecommendationState();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -353,6 +361,9 @@ const Index = () => {
                   step.key === "photo" ? handlePhotoSelected : undefined
                 }
                 allowPhotoSkip={step.key === "photo"}
+                photoStyleSnapshot={
+                  step.key === "photo" ? photoStyleSnapshot : null
+                }
               />
             );
           })}

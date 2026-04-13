@@ -1,9 +1,16 @@
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { PhotoValidationResult } from "@/types/recommendation";
 
+type PhotoStyleSnapshot = {
+  skinToneLabel: string;
+  bodyFrameLabel: string;
+  poseLabel: string;
+};
+
 type PreparedPhotoResult = {
   imageDataUrl: string;
   photoValidation: PhotoValidationResult;
+  styleSnapshot: PhotoStyleSnapshot;
 };
 
 const WASM_BASE = "https://unpkg.com/@mediapipe/tasks-vision@0.10.21/wasm";
@@ -226,6 +233,74 @@ function buildValidationResult(
   };
 }
 
+function deriveBodyFrameLabel(summary: PhotoValidationResult["summary"]) {
+  if (summary.facing === "side") return "Lean frame";
+  if (summary.posture === "dynamic") return "Defined frame";
+  if (summary.facing === "three_quarter") return "Balanced frame";
+  return "Balanced frame";
+}
+
+function derivePoseLabel(summary: PhotoValidationResult["summary"]) {
+  if (summary.posture === "dynamic") return "Dynamic pose";
+  if (summary.facing === "three_quarter") return "Angled pose";
+  if (summary.facing === "side") return "Side pose";
+  return "Front-facing pose";
+}
+
+function deriveSkinToneLabel(image: HTMLImageElement) {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.floor(image.width * 0.3));
+  canvas.height = Math.max(1, Math.floor(image.height * 0.18));
+
+  const context = canvas.getContext("2d");
+  if (!context) return "Natural tone";
+
+  const sampleX = Math.floor(image.width * 0.35);
+  const sampleY = Math.floor(image.height * 0.12);
+  const sampleW = Math.max(1, Math.floor(image.width * 0.3));
+  const sampleH = Math.max(1, Math.floor(image.height * 0.18));
+
+  context.drawImage(
+    image,
+    sampleX,
+    sampleY,
+    sampleW,
+    sampleH,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+
+  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+
+  let totalR = 0;
+  let totalG = 0;
+  let totalB = 0;
+  let count = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha < 10) continue;
+
+    totalR += data[i];
+    totalG += data[i + 1];
+    totalB += data[i + 2];
+    count += 1;
+  }
+
+  if (count === 0) return "Natural tone";
+
+  const avgR = totalR / count;
+  const avgG = totalG / count;
+  const avgB = totalB / count;
+  const luminance = 0.2126 * avgR + 0.7152 * avgG + 0.0722 * avgB;
+
+  if (luminance >= 185) return "Light tone";
+  if (luminance >= 130) return "Medium tone";
+  return "Deep tone";
+}
+
 export async function prepareValidatedPhoto(
   file: File,
 ): Promise<PreparedPhotoResult> {
@@ -233,9 +308,15 @@ export async function prepareValidatedPhoto(
   const image = await loadImage(imageDataUrl);
   const poseLandmarker = await getPoseLandmarker();
   const result = poseLandmarker.detect(image);
+  const photoValidation = buildValidationResult(result);
 
   return {
     imageDataUrl,
-    photoValidation: buildValidationResult(result),
+    photoValidation,
+    styleSnapshot: {
+      skinToneLabel: deriveSkinToneLabel(image),
+      bodyFrameLabel: deriveBodyFrameLabel(photoValidation.summary),
+      poseLabel: derivePoseLabel(photoValidation.summary),
+    },
   };
 }

@@ -7,6 +7,12 @@ export type PriceRange =
   | "₹2,000 - ₹2,499"
   | "₹2,500 & above";
 
+  export interface PhotoStyleSnapshot {
+    skinToneLabel: string;
+    bodyFrameLabel: string;
+    poseLabel: string;
+  }
+
 export interface PhotoValidationSummary {
   personCount: number;
   visibleParts: {

@@ -2,6 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import TypewriterText from "./TypewriterText";
 import { Upload, Camera, Pencil, Send, Loader2 } from "lucide-react";
 
+type PhotoStyleSnapshot = {
+  skinToneLabel: string;
+  bodyFrameLabel: string;
+  poseLabel: string;
+};
+
 interface StepCardProps {
   stepNumber: number;
   question: string;
@@ -15,6 +21,7 @@ interface StepCardProps {
   analysisText?: string;
   onPhotoSelected?: (file: File) => Promise<string>;
   allowPhotoSkip?: boolean;
+  photoStyleSnapshot?: PhotoStyleSnapshot | null;
 }
 
 const StepCard = ({
@@ -30,6 +37,7 @@ const StepCard = ({
   analysisText,
   onPhotoSelected,
   allowPhotoSkip = false,
+  photoStyleSnapshot = null,
 }: StepCardProps) => {
   const [questionDone, setQuestionDone] = useState(false);
   const [helperDone, setHelperDone] = useState(!helperText);
@@ -93,41 +101,57 @@ const StepCard = ({
         className="glass-card smooth-layer rounded-xl px-5 py-4 opacity-60 hover:opacity-80"
         style={{ transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)" }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase font-medium shrink-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <span className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase font-medium shrink-0 mt-1">
               Step {stepNumber}
             </span>
 
-            {isPromptType && isEditingPrompt ? (
-              <form
-                className="flex-1 flex items-center gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (promptValue.trim()) {
-                    onAnswer(promptValue.trim());
-                    setIsEditingPrompt(false);
-                  }
-                }}
-              >
-                <input
-                  ref={editInputRef}
-                  value={promptValue}
-                  onChange={(e) => setPromptValue(e.target.value)}
-                  className="flex-1 bg-transparent border-b border-border text-sm text-foreground font-medium outline-none focus:border-primary"
-                />
-                <button
-                  type="submit"
-                  className="text-primary hover:text-primary/80 transition-colors"
+            <div className="min-w-0 flex-1">
+              {isPromptType && isEditingPrompt ? (
+                <form
+                  className="flex-1 flex items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (promptValue.trim()) {
+                      onAnswer(promptValue.trim());
+                      setIsEditingPrompt(false);
+                    }
+                  }}
                 >
-                  <Send size={14} />
-                </button>
-              </form>
-            ) : (
-              <span className="text-sm text-foreground font-medium truncate">
-                {answered}
-              </span>
-            )}
+                  <input
+                    ref={editInputRef}
+                    value={promptValue}
+                    onChange={(e) => setPromptValue(e.target.value)}
+                    className="flex-1 bg-transparent border-b border-border text-sm text-foreground font-medium outline-none focus:border-primary"
+                  />
+                  <button
+                    type="submit"
+                    className="text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <Send size={14} />
+                  </button>
+                </form>
+              ) : (
+                <span className="text-sm text-foreground font-medium block truncate">
+                  {answered}
+                </span>
+              )}
+
+              {type === "photo" && photoStyleSnapshot && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <span className="chip-base text-xs px-3 py-1.5">
+                    {photoStyleSnapshot.skinToneLabel}
+                  </span>
+                  <span className="chip-base text-xs px-3 py-1.5">
+                    {photoStyleSnapshot.bodyFrameLabel}
+                  </span>
+                  <span className="chip-base text-xs px-3 py-1.5">
+                    {photoStyleSnapshot.poseLabel}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {onEdit && !isEditingPrompt && (
@@ -314,7 +338,8 @@ const StepCard = ({
               </div>
 
               <p className="text-[11px] text-muted-foreground mt-3 opacity-60">
-                Photo is used only to verify full-body upload.
+                Photo is used only to verify full-body upload and show a quick
+                style snapshot.
               </p>
 
               {photoError && (
