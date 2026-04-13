@@ -306,22 +306,29 @@ async function fetchShopifyMeta(shopifyProductId: string, title: string) {
       ? product.variants.nodes
       : [];
 
-    const liveAvailableVariantId =
-      variantNodes.find(
-        (node: any) => node?.availableForSale && typeof node?.id === "string",
-      )?.id || null;
+    const availableVariant = variantNodes.find(
+      (node: any) => node?.availableForSale && typeof node?.id === "string",
+    );
 
-    const fallbackVariantId =
-      variantNodes.find((node: any) => typeof node?.id === "string")?.id ||
-      null;
+    const fallbackVariant = variantNodes.find(
+      (node: any) => typeof node?.id === "string",
+    );
+
+    const liveVariantNumericId =
+      extractNumericIdFromGid(availableVariant?.id) ??
+      extractNumericIdFromGid(fallbackVariant?.id);
+
+    const liveSoldOut =
+      variantNodes.length > 0
+        ? !variantNodes.some((node: any) => node?.availableForSale)
+        : false;
 
     return {
       storeUrl,
       imageUrl: imageCandidates[0] || null,
       allImages: imageCandidates,
-      liveVariantNumericId:
-        extractNumericIdFromGid(liveAvailableVariantId) ??
-        extractNumericIdFromGid(fallbackVariantId),
+      liveVariantNumericId,
+      liveSoldOut,
     };
   } catch {
     return {
@@ -329,9 +336,11 @@ async function fetchShopifyMeta(shopifyProductId: string, title: string) {
       imageUrl: null,
       allImages: [],
       liveVariantNumericId: null,
+      liveSoldOut: false,
     };
   }
 }
+
 
 async function hydrateStoreLinksAndImages(
   products: ReturnType<typeof scoreProducts>,
@@ -349,6 +358,7 @@ async function hydrateStoreLinksAndImages(
       let variantNumericId: string | null = source
         ? getPrimaryVariantNumericId(source)
         : null;
+      let soldOut = product.soldOut;
 
       if (product.shopifyProductId) {
         const meta = await fetchShopifyMeta(
@@ -376,17 +386,27 @@ async function hydrateStoreLinksAndImages(
         if (meta.liveVariantNumericId) {
           variantNumericId = meta.liveVariantNumericId;
         }
+
+        // Prefer live Shopify sold-out state over Firestore guess
+        soldOut = meta.liveSoldOut;
       }
 
       return {
         ...product,
         imageUrl,
         storeUrl,
-        addToCartUrl: variantNumericId
-          ? `${STORE_BASE_URL}/cart/add?id=${encodeURIComponent(
-              variantNumericId,
-            )}&quantity=1&return_to=/cart`
-          : null,
+        soldOut,
+        reason: soldOut
+          ? product.reason.includes("Currently sold out.")
+            ? product.reason
+            : `${product.reason} Currently sold out.`
+          : product.reason.replace(/\s*Currently sold out\.\s*/g, "").trim(),
+        addToCartUrl:
+          !soldOut && variantNumericId
+            ? `${STORE_BASE_URL}/cart/add?id=${encodeURIComponent(
+                variantNumericId,
+              )}&quantity=1&return_to=/cart`
+            : null,
       };
     }),
   );
@@ -452,7 +472,7 @@ export default async function handler(req: any, res: any) {
 
     const response = recommendResponseSchema.parse({
       occasionContext: {
-        eventType: "ignored",
+        eventType: "unknown",
         timeOfDay: "unknown",
         season: "unknown",
         formality: "unknown",
