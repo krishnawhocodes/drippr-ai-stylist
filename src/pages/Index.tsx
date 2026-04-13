@@ -127,6 +127,7 @@ const Index = () => {
   );
 
   const flowRef = useRef<HTMLDivElement>(null);
+  const categoryOptionsCache = useRef<Record<string, string[]>>({});
 
   const isCompact = activeStep >= 1 || showResults;
   const shouldLockViewport = activeStep === 0 && !curating && !showResults;
@@ -189,43 +190,56 @@ const Index = () => {
   };
 
   const handleAnswer = useCallback(
-  async (key: keyof Answers, value: string) => {
-    const nextAnswers = {
-      ...answers,
-      [key]: value,
-    } as Answers;
+    (key: keyof Answers, value: string) => {
+      const nextAnswers = {
+        ...answers,
+        [key]: value,
+      } as Answers;
 
-    setAnswers(nextAnswers);
+      setAnswers(nextAnswers);
 
-    if (key === "vibe" && nextAnswers.gender) {
-      try {
-        const options = await getAvailableCategoryOptions({
-          gender: nextAnswers.gender as Gender,
-          vibe: value,
-        });
+      const nextStep = activeStep + 1;
 
-        setCategoryOptions(
-          options.length > 0 ? options : ALL_CATEGORY_OPTIONS,
-        );
-      } catch {
-        setCategoryOptions(ALL_CATEGORY_OPTIONS);
+      // Move forward immediately for faster UX
+      if (nextStep < STEPS.length) {
+        const delay = key === "photo" ? 60 : 20;
+
+        window.setTimeout(() => {
+          setActiveStep(nextStep);
+        }, delay);
       }
-    }
 
-    const nextStep = activeStep + 1;
+      // Load category options in background after vibe selection
+      if (key === "vibe" && nextAnswers.gender) {
+        const cacheKey = `${nextAnswers.gender}__${value}`;
 
-    if (nextStep < STEPS.length) {
-      const delay = key === "photo" ? 120 : 90;
-      window.setTimeout(() => {
-        setActiveStep(nextStep);
-      }, delay);
-      return;
-    }
+        const cached = categoryOptionsCache.current[cacheKey];
+        if (cached && cached.length > 0) {
+          setCategoryOptions(cached);
+        } else {
+          void getAvailableCategoryOptions({
+            gender: nextAnswers.gender as Gender,
+            vibe: value,
+          })
+            .then((options) => {
+              const finalOptions =
+                options.length > 0 ? options : ALL_CATEGORY_OPTIONS;
 
-    runRecommendation(nextAnswers);
-  },
-  [activeStep, answers],
-);
+              categoryOptionsCache.current[cacheKey] = finalOptions;
+              setCategoryOptions(finalOptions);
+            })
+            .catch(() => {
+              setCategoryOptions(ALL_CATEGORY_OPTIONS);
+            });
+        }
+      }
+
+      if (nextStep >= STEPS.length) {
+        runRecommendation(nextAnswers);
+      }
+    },
+    [activeStep, answers],
+  );
 
       
 
