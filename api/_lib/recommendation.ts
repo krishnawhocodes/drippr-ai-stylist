@@ -16,6 +16,7 @@ const VIBE_KEYWORDS: Record<string, string[]> = {
     "cargo",
   ],
   Minimal: ["minimal", "clean", "plain", "solid", "tailored", "classic"],
+  "Daily Drip": ["daily", "everyday", "casual", "basic", "comfortable", "easy"],
   Daily: ["daily", "everyday", "casual", "basic", "comfortable", "easy"],
   Thrift: ["vintage", "retro", "washed", "distressed", "denim", "corduroy"],
   Fusion: ["fusion", "ethnic", "indo", "traditional", "kurta", "embroidered"],
@@ -608,65 +609,58 @@ export function scoreProducts(args: {
   const vibeAliases = VIBE_KEYWORDS[args.vibe] ?? [normalizeText(args.vibe)];
   const maxResults = args.maxResults ?? 100;
 
-  return args.products
-    .map((product) => {
-      const fullText = joinedText(product);
-      const fullTokens = tokenize(fullText);
+  const scored = args.products.map((product) => {
+    const fullText = joinedText(product);
+    const fullTokens = tokenize(fullText);
 
-      const imageUrl = getPrimaryImage(product);
-      const cat = categorySignals(product, args.category);
-      const vibeHits = countExactAliasMatches(
-        fullText,
-        fullTokens,
-        vibeAliases,
-      );
-      const soldOut = isSoldOut(product);
+    const imageUrl = getPrimaryImage(product);
+    const cat = categorySignals(product, args.category);
+    const vibeHits = countExactAliasMatches(fullText, fullTokens, vibeAliases);
+    const soldOut = isSoldOut(product);
 
-      let score = 0;
-      const reasons: string[] = [];
+    let score = 0;
+    const reasons: string[] = [];
 
-      score += 30 + Math.max(0, cat.totalScore) * 3;
-      if (cat.totalScore > 0) {
-        reasons.push("Strong category fit.");
-      }
+    score += 30 + Math.max(0, cat.totalScore) * 3;
+    if (cat.totalScore > 0) {
+      reasons.push("Strong category fit.");
+    }
 
-      score += vibeHits * 8;
-      if (vibeHits > 0) {
-        reasons.push("Matches your selected vibe.");
-      }
+    score += vibeHits * 8;
+    if (vibeHits > 0) {
+      reasons.push("Matches your selected vibe.");
+    }
 
-      if (imageUrl) {
-        score += 5;
-      }
+    if (imageUrl) {
+      score += 5;
+    }
 
-      if (soldOut) {
-        score -= 1000;
-      }
+    return {
+      id: product.id,
+      title: product.title || "Untitled product",
+      description: product.description ?? "",
+      price: product.price ?? 0,
+      currency: product.currency ?? "INR",
+      imageUrl,
+      merchantId: product.merchantId ?? "",
+      sku: product.sku ?? "",
+      vendor: product.vendor ?? "DRIPPR Marketplace",
+      score,
+      reason: buildReason(reasons, soldOut),
+      soldOut,
+      shopifyProductId: product.shopifyProductId ?? null,
+      storeUrl: null,
+      addToCartUrl: null,
+    };
+  });
 
-      return {
-        id: product.id,
-        title: product.title || "Untitled product",
-        description: product.description ?? "",
-        price: product.price ?? 0,
-        currency: product.currency ?? "INR",
-        imageUrl,
-        merchantId: product.merchantId ?? "",
-        sku: product.sku ?? "",
-        vendor: product.vendor ?? "DRIPPR Marketplace",
-        score,
-        reason: buildReason(reasons, soldOut),
-        soldOut,
-        shopifyProductId: product.shopifyProductId ?? null,
-        storeUrl: null,
-        addToCartUrl: null,
-      };
-    })
-    .sort((a, b) => {
-      if (a.soldOut !== b.soldOut) {
-        return a.soldOut ? 1 : -1;
-      }
+  const inStock = scored
+    .filter((item) => !item.soldOut)
+    .sort((a, b) => b.score - a.score || a.price - b.price);
 
-      return b.score - a.score || a.price - b.price;
-    })
-    .slice(0, maxResults);
+  const soldOut = scored
+    .filter((item) => item.soldOut)
+    .sort((a, b) => b.score - a.score || a.price - b.price);
+
+  return [...inStock, ...soldOut].slice(0, maxResults);
 }

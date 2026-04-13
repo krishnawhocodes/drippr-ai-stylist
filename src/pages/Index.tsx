@@ -70,7 +70,7 @@ const STEPS = [
     options: [
       "Streetwear",
       "Minimal",
-      "Daily",
+      "Daily Drip",
       "Thrift",
       "Fusion",
       "Athleisure",
@@ -189,43 +189,45 @@ const Index = () => {
   };
 
   const handleAnswer = useCallback(
-    (key: keyof Answers, value: string) => {
-      const nextAnswers = {
-        ...answers,
-        [key]: value,
-      } as Answers;
+  async (key: keyof Answers, value: string) => {
+    const nextAnswers = {
+      ...answers,
+      [key]: value,
+    } as Answers;
 
-      setAnswers(nextAnswers);
+    setAnswers(nextAnswers);
 
-      if (key === "vibe" && nextAnswers.gender) {
-        void getAvailableCategoryOptions({
+    if (key === "vibe" && nextAnswers.gender) {
+      try {
+        const options = await getAvailableCategoryOptions({
           gender: nextAnswers.gender as Gender,
           vibe: value,
-        })
-          .then((options) => {
-            setCategoryOptions(
-              options.length > 0 ? options : ALL_CATEGORY_OPTIONS,
-            );
-          })
-          .catch(() => {
-            setCategoryOptions(ALL_CATEGORY_OPTIONS);
-          });
+        });
+
+        setCategoryOptions(
+          options.length > 0 ? options : ALL_CATEGORY_OPTIONS,
+        );
+      } catch {
+        setCategoryOptions(ALL_CATEGORY_OPTIONS);
       }
+    }
 
-      const nextStep = activeStep + 1;
+    const nextStep = activeStep + 1;
 
-      if (nextStep < STEPS.length) {
-        const delay = key === "photo" ? 120 : 90;
-        window.setTimeout(() => {
-          setActiveStep(nextStep);
-        }, delay);
-        return;
-      }
+    if (nextStep < STEPS.length) {
+      const delay = key === "photo" ? 120 : 90;
+      window.setTimeout(() => {
+        setActiveStep(nextStep);
+      }, delay);
+      return;
+    }
 
-      runRecommendation(nextAnswers);
-    },
-    [activeStep, answers],
-  );
+    runRecommendation(nextAnswers);
+  },
+  [activeStep, answers],
+);
+
+      
 
   const handlePhotoSelected = useCallback(async (file: File) => {
     const prepared = await prepareValidatedPhoto(file);

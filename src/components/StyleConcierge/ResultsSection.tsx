@@ -56,8 +56,12 @@ const ResultsSection = ({
   }, []);
 
   const chips = chipsFromContext(occasionContext);
-  const displayed = showAll ? products : products.slice(0, 8);
+const inStockProducts = products.filter((product) => !product.soldOut);
+const soldOutProducts = products.filter((product) => product.soldOut);
 
+const displayed = showAll
+  ? products
+  : [...inStockProducts.slice(0, 8), ...soldOutProducts.slice(0, 2)];
   if (error) {
     return (
       <div
@@ -153,13 +157,13 @@ const ResultsSection = ({
         ))}
       </div>
 
-      {products.length > 8 && !showAll && (
+      {products.length > displayed.length && !showAll && (
         <div className="flex justify-center mt-8">
           <button
             onClick={() => setShowAll(true)}
             className="chip-base chip-selected px-8"
           >
-            Show more ({products.length - 8} more)
+            Show more ({products.length - displayed.length} more)
           </button>
         </div>
       )}
