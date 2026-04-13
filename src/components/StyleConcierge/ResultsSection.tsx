@@ -20,7 +20,11 @@ interface ResultsSectionProps {
 function chipsFromContext(occasionContext: OccasionContext | null) {
   const chips: string[] = [];
 
-  if (occasionContext?.eventType) {
+  if (
+    occasionContext?.eventType &&
+    occasionContext.eventType !== "ignored" &&
+    occasionContext.eventType !== "unknown"
+  ) {
     chips.push(occasionContext.eventType.replace(/_/g, " "));
   }
   if (occasionContext?.season && occasionContext.season !== "unknown") {

@@ -421,7 +421,7 @@ export default async function handler(req: any, res: any) {
       category: body.category,
       priceRange: body.priceRange,
       occasionContext: {
-        eventType: "ignored",
+        eventType: "unknown",
         timeOfDay: "unknown",
         season: "unknown",
         formality: "unknown",
