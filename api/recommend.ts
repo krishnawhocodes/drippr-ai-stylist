@@ -306,17 +306,14 @@ async function fetchShopifyMeta(shopifyProductId: string, title: string) {
       ? product.variants.nodes
       : [];
 
-    const availableVariant = variantNodes.find(
-      (node: any) => node?.availableForSale && typeof node?.id === "string",
-    );
+    const liveAvailableVariantId =
+      variantNodes.find(
+        (node: any) => node?.availableForSale && typeof node?.id === "string",
+      )?.id || null;
 
-    const fallbackVariant = variantNodes.find(
-      (node: any) => typeof node?.id === "string",
-    );
-
-    const liveVariantNumericId =
-      extractNumericIdFromGid(availableVariant?.id) ??
-      extractNumericIdFromGid(fallbackVariant?.id);
+    const fallbackVariantId =
+      variantNodes.find((node: any) => typeof node?.id === "string")?.id ||
+      null;
 
     const liveSoldOut =
       variantNodes.length > 0
@@ -327,7 +324,9 @@ async function fetchShopifyMeta(shopifyProductId: string, title: string) {
       storeUrl,
       imageUrl: imageCandidates[0] || null,
       allImages: imageCandidates,
-      liveVariantNumericId,
+      liveVariantNumericId:
+        extractNumericIdFromGid(liveAvailableVariantId) ??
+        extractNumericIdFromGid(fallbackVariantId),
       liveSoldOut,
     };
   } catch {
@@ -382,12 +381,10 @@ async function hydrateStoreLinksAndImages(
           );
         }
 
-        // Prefer live Shopify variant over Firestore mirror
         if (meta.liveVariantNumericId) {
           variantNumericId = meta.liveVariantNumericId;
         }
 
-        // Prefer live Shopify sold-out state over Firestore guess
         soldOut = meta.liveSoldOut;
       }
 
