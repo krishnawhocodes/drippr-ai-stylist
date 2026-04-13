@@ -174,7 +174,9 @@ function normalizeShopifyProduct(node: any): CatalogProductEntry | null {
     currency: "INR",
     sku: null,
     status: soldOut ? "sold_out" : "active",
-    published: Boolean(storeUrl),
+    published:
+      typeof node?.onlineStoreUrl === "string" &&
+      node.onlineStoreUrl.trim().length > 0,
     vendor:
       typeof node?.vendor === "string" ? node.vendor : "DRIPPR Marketplace",
     productType:
