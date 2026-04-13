@@ -139,16 +139,84 @@ const StepCard = ({
               )}
 
               {type === "photo" && photoStyleSnapshot && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  <span className="chip-base text-xs px-3 py-1.5">
-                    {photoStyleSnapshot.skinToneLabel}
-                  </span>
-                  <span className="chip-base text-xs px-3 py-1.5">
-                    {photoStyleSnapshot.bodyFrameLabel}
-                  </span>
-                  <span className="chip-base text-xs px-3 py-1.5">
-                    {photoStyleSnapshot.poseLabel}
-                  </span>
+                <div className="mt-3">
+                  <div
+                    className="rounded-2xl p-3 md:p-4"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, rgba(255,122,47,0.08), rgba(255,255,255,0.03))",
+                      border: "1px solid rgba(255,122,47,0.14)",
+                      backdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <p className="text-[10px] tracking-[0.24em] uppercase text-primary font-semibold">
+                          Style Snapshot
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          AI-read visual cues from your photo
+                        </p>
+                      </div>
+
+                      <div
+                        className="h-9 w-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{
+                          background: "rgba(255,122,47,0.10)",
+                          border: "1px solid rgba(255,122,47,0.18)",
+                        }}
+                      >
+                        ✦
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div
+                        className="rounded-2xl px-4 py-3"
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        <p className="text-[10px] tracking-[0.18em] uppercase text-muted-foreground font-medium">
+                          Skin Tone
+                        </p>
+                        <p className="text-sm font-semibold text-foreground mt-1.5">
+                          {photoStyleSnapshot.skinToneLabel}
+                        </p>
+                      </div>
+
+                      <div
+                        className="rounded-2xl px-4 py-3"
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        <p className="text-[10px] tracking-[0.18em] uppercase text-muted-foreground font-medium">
+                          Body Frame
+                        </p>
+                        <p className="text-sm font-semibold text-foreground mt-1.5">
+                          {photoStyleSnapshot.bodyFrameLabel}
+                        </p>
+                      </div>
+
+                      <div
+                        className="rounded-2xl px-4 py-3"
+                        style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        <p className="text-[10px] tracking-[0.18em] uppercase text-muted-foreground font-medium">
+                          Pose
+                        </p>
+                        <p className="text-sm font-semibold text-foreground mt-1.5">
+                          {photoStyleSnapshot.poseLabel}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
