@@ -583,22 +583,18 @@ export function buildCandidatePool(args: {
     (product) => categorySignals(product, args.category).titleTagMatch,
   );
 
-  if (strict.length > 0) {
-    return {
-      products: strict,
-      stage: "strict_product_type",
-      counts: {
-        baseEligible: baseEligible.length,
-        strictProductType: strict.length,
-        titleTagMatch: soft.length,
-      },
-    };
-  }
+  const merged = [
+    ...strict,
+    ...soft.filter(
+      (softProduct) =>
+        !strict.some((strictProduct) => strictProduct.id === softProduct.id),
+    ),
+  ];
 
-  if (soft.length > 0) {
+  if (merged.length > 0) {
     return {
-      products: soft,
-      stage: "title_tag_match",
+      products: merged,
+      stage: strict.length > 0 ? "strict_product_type" : "title_tag_match",
       counts: {
         baseEligible: baseEligible.length,
         strictProductType: strict.length,
